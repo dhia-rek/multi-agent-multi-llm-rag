@@ -1,0 +1,18 @@
+Alexandra's Bikeshop is a small Swiss SME selling bicycles and offering repair services.
+The company has two physical stores, a basic Shopify website, and a small Instagram following.
+Revenue has plateaued in the last two years. Younger customers expect online configurators,
+home delivery, and trade-in options that the shop currently does not provide. Repair scheduling
+is still done by phone, leading to long lead times and unhappy customers.
+
+The owner wants to:
+  - improve customer experience across online and in-store touchpoints,
+  - increase sales by reaching new customer segments (e-bike commuters, families),
+  - reduce operational costs in the repair workflow,
+  - build a small but real digital marketing presence,
+  - prepare the business for a future second-generation owner who is more digital-native.
+
+Constraints:
+  - limited IT budget (under CHF 60k for year 1),
+  - 8 employees, none with deep digital skills,
+  - no in-house developers,
+  - data scattered across POS, Excel files, and paper repair tickets.

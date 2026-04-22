@@ -1,0 +1,27 @@
+# Core
+python-dotenv>=1.0.1
+pydantic>=2.7
+
+# PDF / text extraction
+pypdf>=4.2.0
+
+# Embeddings + vector store
+sentence-transformers>=3.0.0
+faiss-cpu>=1.8.0
+numpy>=1.26
+
+# LLM providers
+google-generativeai>=0.8.3
+
+# UI
+streamlit>=1.36
+pandas>=2.2
+
+# API (FR11)
+fastapi>=0.111
+uvicorn[standard]>=0.30
+requests>=2.31
+
+# Utils
+tqdm>=4.66
+tenacity>=8.3

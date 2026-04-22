@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.cache/
+vector_store/index/
+*.zip
+# admin / spec docs not part of the solution
+Project*.pdf
+Project*.xlsx
+nohup.out
+/tmp/
