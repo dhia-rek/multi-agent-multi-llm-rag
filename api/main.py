@@ -163,3 +163,4 @@ def generate_roadmap(payload: BusinessCaseIn) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Pipeline error: {e}") from e
 
     return trace.as_dict()
+# REST API - May 6
