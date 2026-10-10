@@ -6,7 +6,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.llm_clients.base import LLMResponse, QuotaExhaustedError
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+
+from src.llm_clients.base import BaseLLMClient, QuotaExhaustedError
+from src.llm_clients.gemini import invoke_with_retry, usage_from_message
 from src.routing.router import Router, RoutingDecision
 from src.utils.logging import get_logger
 
@@ -50,6 +53,9 @@ class BaseAgent:
     task_type: str = "synthesis"
     complexity: str = "medium"
     criticality: str = "medium"
+    # Gemini thinking-token budget for this agent; None = tier default
+    # (powerful tier: GEMINI_THINKING_BUDGET, fast tier: 0).
+    thinking_budget: int | None = None
     system_prompt: str = ""
     user_template: str = ""
 
@@ -59,29 +65,38 @@ class BaseAgent:
     def render_user(self, **kwargs) -> str:
         return self.user_template.format(**kwargs)
 
-    def call(self, user_prompt: str, **gen_kwargs) -> tuple[LLMResponse, RoutingDecision]:
+    def _messages(self, user_prompt: str) -> list[BaseMessage]:
+        return [SystemMessage(self.system_prompt), HumanMessage(user_prompt)]
+
+    def _invoke(self, client: BaseLLMClient, user_prompt: str):
+        return invoke_with_retry(client.as_chat_model(self.thinking_budget), self._messages(user_prompt))
+
+    def call(self, user_prompt: str) -> tuple[Any, BaseLLMClient, RoutingDecision]:
+        """Route, then call the tier's LangChain chat model. On a daily-quota error the tier
+        is marked dead for the rest of the run and the call is re-routed (to a mock)."""
         client, decision = self.router.route(self.task_type, self.complexity, self.criticality)
         try:
-            resp = client.generate(user_prompt, system=self.system_prompt, **gen_kwargs)
+            msg = self._invoke(client, user_prompt)
         except QuotaExhaustedError:
-            # Mark this tier dead for the rest of the run and re-route.
             self.router.mark_exhausted(decision.tier)
             client, decision = self.router.route(self.task_type, self.complexity, self.criticality)
-            resp = client.generate(user_prompt, system=self.system_prompt, **gen_kwargs)
-        return resp, decision
+            msg = self._invoke(client, user_prompt)
+        return msg, client, decision
 
     def run(self, **inputs: Any) -> AgentResult:
         user = self.render_user(**inputs)
-        resp, decision = self.call(user)
-        parsed = parse_json_safely(resp.text)
+        msg, client, decision = self.call(user)
+        text = (msg.content if isinstance(msg.content, str) else str(msg.text)).strip()
+        parsed = parse_json_safely(text)
         if parsed is None:
             log.warning("[%s] Could not parse JSON, returning raw text.", self.name)
+        usage = usage_from_message(msg)
         return AgentResult(
             name=self.name,
-            output=parsed if parsed is not None else resp.text,
-            raw_text=resp.text,
-            model=resp.model,
-            tier=resp.tier,
+            output=parsed if parsed is not None else text,
+            raw_text=text,
+            model=client.name,
+            tier=client.tier,
             routing=decision,
-            extras={"usage": resp.usage} if resp.usage else {},
+            extras={"usage": usage} if usage else {},
         )

@@ -86,7 +86,7 @@ def orchestrator(tmp_path, monkeypatch, fake_retriever):
     s = make_settings(demo_mode="on", cache_dir=tmp_path / "cache")
     monkeypatch.setattr("src.routing.router.settings", s)
     monkeypatch.setattr("src.cache.disk_cache.settings", s)
-    monkeypatch.setattr("src.orchestrator.pipeline.settings", s)
+    monkeypatch.setattr("src.orchestrator.graph.settings", s)
     orch = Orchestrator(router=Router(), retriever=fake_retriever)
     assert isinstance(orch.cache, DiskCache)
     return orch

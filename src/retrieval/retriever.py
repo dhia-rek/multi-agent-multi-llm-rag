@@ -48,6 +48,17 @@ class Retriever:
             passages = [p for p in passages if p.chunk.framework in allowed]
         return passages[:k]
 
+    def retrieve_many(self, queries: list[str], k: int | None = None) -> list[list[RetrievedPassage]]:
+        """One embedding batch for all queries (one model call instead of one per query)."""
+        k = k or settings.top_k
+        if not queries:
+            return []
+        qvecs = self.embedder.encode(queries)
+        return [
+            [RetrievedPassage(chunk=c, score=sc) for c, sc in self.store.search(qvecs[i], k=k)]
+            for i in range(len(queries))
+        ]
+
     @staticmethod
     def format_context(passages: list[RetrievedPassage]) -> str:
         return "\n\n---\n\n".join(p.to_context_block() for p in passages)

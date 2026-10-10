@@ -10,5 +10,6 @@ class EvaluatorAgent(BaseAgent):
     task_type = "evaluation"
     complexity = "medium"
     criticality = "high"
+    thinking_budget = 512   # structured JSON from a finished strategy: little to think about
     system_prompt = EVALUATOR_SYSTEM
     user_template = EVALUATOR_USER

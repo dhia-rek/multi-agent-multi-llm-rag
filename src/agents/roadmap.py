@@ -10,5 +10,6 @@ class RoadmapAgent(BaseAgent):
     task_type = "generation"
     complexity = "high"
     criticality = "high"
+    thinking_budget = 0   # structured JSON from a finished strategy: little to think about
     system_prompt = ROADMAP_SYSTEM
     user_template = ROADMAP_USER

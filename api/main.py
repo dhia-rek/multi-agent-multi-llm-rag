@@ -130,7 +130,8 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
     orch = get_orchestrator()
     trace = None
     for stage, trace in orch.run_streaming(payload.business_case, run_evaluator=False):  # noqa: B007
-        if stage in {"canvas", "cached"}:
+        # framework and canvas run in parallel: stop once both are in
+        if stage == "cached" or (trace.framework is not None and trace.canvas is not None):
             break
 
     return {

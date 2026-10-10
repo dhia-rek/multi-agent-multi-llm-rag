@@ -44,27 +44,47 @@ The output is strict JSON (phases, initiatives, owners, KPIs, milestones, budget
 
 ## 🏗️ Architecture
 
+The pipeline is a [LangGraph](https://langchain-ai.github.io/langgraph/) `StateGraph` (`src/orchestrator/graph.py`) with a typed state, one node per agent, and Gemini behind `langchain-google-genai`. The router still decides flash-lite vs flash; demo and mock modes plug in as LangChain chat models too.
+
 ```mermaid
 flowchart LR
-    A[📥 Business case<br/>free text] --> B[🧭 Planner]
-    B -->|queries| C[(📚 FAISS index<br/>MiniLM embeddings)]
-    C -->|top-k passages| D[📚 Framework]
-    D --> E[🧮 Canvas analysis]
-    E --> F[♟️ Strategist]
-    F --> G[🗺️ Roadmap]
-    G --> H[🔍 Evaluator<br/>optional]
-    H --> I[📤 JSON roadmap<br/>+ trace]
+    S([▶ start]) --> P[🧭 Planner<br/>flash-lite]
+    P -->|retry once if JSON unparsable| P
+    P --> R[(📚 Retrieval<br/>FAISS, one batched embedding)]
+    R --> F[📚 Framework<br/>flash-lite]
+    R --> C[🧮 Canvas analysis<br/>flash]
+    F --> J{join}
+    C --> J
+    J --> ST[♟️ Strategist<br/>flash]
+    ST --> RM[🗺️ Roadmap<br/>flash, no thinking]
+    RM -->|run_evaluator| E[🔍 Evaluator<br/>flash, thinking 512]
+    RM -->|skip| X([■ end])
+    E --> X
 
-    R{{🧠 Router}} -.fast tier.-> B & D
-    R -.powerful tier.-> E & F & G & H
-
-    classDef io fill:#fff3cd,stroke:#856404
-    classDef rag fill:#d1e7dd,stroke:#0f5132
+    classDef par fill:#d1e7dd,stroke:#0f5132
     classDef opt fill:#f8d7da,stroke:#842029
-    class A,I io
-    class C rag
-    class H opt
+    class F,C par
+    class E opt
 ```
+
+**Real data dependencies** (what each prompt actually consumes):
+
+| Stage | Needs | Can run with |
+|---|---|---|
+| Planner | business case | – |
+| Retrieval | planner's queries | – |
+| Framework | planner summary + passages | **Canvas** |
+| Canvas | planner summary/objectives/constraints + passages | **Framework** |
+| Strategist | plan + canvas + framework | – |
+| Roadmap | strategy + canvas | – |
+| Evaluator | case + plan + strategy + roadmap | – |
+
+Honest answer: the pipeline is almost entirely sequential. Only **Framework ‖ Canvas** can overlap, and only because the canvas prompt no longer receives the framework agent's output (it used to; the passages it also gets already carry the same evidence). Everything from the strategist on is a strict chain. The other speedups are therefore not parallelism:
+
+- one batched embedding call for all planner queries instead of one per query
+- compact JSON between agents (about 2–6% smaller prompts, `python -m scripts.bench_prompts`)
+- per-agent thinking budgets: roadmap 0 (it only reshapes a finished strategy into JSON), evaluator 512, others at `GEMINI_THINKING_BUDGET`
+- conditional edges: unparsable JSON from a live model re-runs that agent once; quota exhaustion fails over to a mock; missing planner queries fall back to the case text
 
 | Agent | Framework anchor | Job | Tier |
 |---|---|---|---|
@@ -106,6 +126,22 @@ flowchart LR
 ```
 
 </details>
+
+### ⚡ Old vs new orchestration
+
+Same bikeshop case, `gemini-2.5-flash-lite` (planner, framework) and `gemini-2.5-flash` (the rest).
+
+| | Old (sequential, main) | New (LangGraph) | How measured |
+|---|---|---|---|
+| Stages on the critical path | 7 | 6 (framework ‖ canvas) | graph structure, tested |
+| Retrieval, 4 queries (median of 15, CPU) | 29.9 ms | 11.1 ms | measured, batched embedding |
+| Strategist / roadmap / evaluator prompt size | 8356 / 7224 / 9980 chars | 7859 / 6845 / 9798 chars (−6% / −5% / −2%) | measured, `scripts.bench_prompts` |
+| Canvas prompt | 2095 prompt tokens | smaller (no framework insights) | old: recorded run; new: not measured live |
+| Thinking tokens, roadmap + evaluator | 756 + 776 | ≤ 0 + 512 (caps) | budgets set in code; actual use not measured live |
+| End-to-end wall clock | **47.6 s** (recorded live run, 2026-10-10: 2.0+1.9+2.1+9.4+7.1+15.1+10.0) | **≈ 43 s, projection** | framework's 2.1 s hides behind canvas; roadmap without thinking is the likely bigger win |
+| Total tokens | 10 632 prompt + 6 710 output + 3 159 thinking | not measured | – |
+
+**Caveat, read this:** a live new-vs-old Gemini comparison could not be completed. The free-tier daily cap (20 requests per model per day) on `gemini-2.5-flash` and then `flash-lite` was reached by the first benchmark runs, so later runs fell back to the mock and say nothing about speed. The old figures come from the recorded live run in the demo fixture; the new end-to-end figure is a projection from those stage timings, not a measurement. Rerun when quota resets: `python -m scripts.bench_live old` on `main` and `python -m scripts.bench_live new` on this branch (about 6 calls each).
 
 ---
 
@@ -210,6 +246,19 @@ curl -s -X POST localhost:8000/generate-roadmap -H 'Content-Type: application/js
 
 In demo mode, retrieval runs for real, while the six agents replay [`data/demo/alexandra_bikeshop.fixture.json`](data/demo/alexandra_bikeshop.fixture.json). **That fixture was recorded from a live Gemini run on 2026-10-10** (`gemini-2.5-flash-lite` for planner and framework, `gemini-2.5-flash` for the other four agents). Outputs are verbatim, with per-stage timings and token usage in its `recorded` block. Regenerate it with `python -m scripts.record_demo` (6 Gemini calls). Any other business case will still show bikeshop outputs, and the UI says so. Demo traces are cached separately from live ones.
 
+### 🔭 LangSmith tracing (optional)
+
+Tracing is off unless you set the standard LangChain variables, for example in `.env`:
+
+```bash
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_ENDPOINT=https://eu.api.smith.langchain.com   # EU region
+LANGSMITH_PROJECT=multi-agent-rag
+```
+
+Each pipeline run becomes one `LangGraph` trace with a span per agent node, the Gemini calls, prompts and token usage; the parallel framework/canvas branches show side by side. Works in demo mode too (the fixture client is traced as a chat model). Nothing else to configure.
+
 ### Configuration
 
 | Variable | Default | |
@@ -222,6 +271,7 @@ In demo mode, retrieval runs for real, while the six agents replay [`data/demo/a
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Local embedder |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` / `RAG_TOP_K` | `900` / `150` / `6` | Retrieval |
 | `DEMO_MODE` | `auto` | See above |
+| `LANGSMITH_TRACING` / `LANGSMITH_API_KEY` / `LANGSMITH_ENDPOINT` / `LANGSMITH_PROJECT` | off | Optional tracing, see above |
 
 ---
 
@@ -263,15 +313,15 @@ app/                    Streamlit dashboard: home + 5 pages, teaching copy in ed
 api/main.py             FastAPI service
 src/
   agents/               6 agents, shared base (routing call, lenient JSON parsing), prompts.py
-  orchestrator/         7-stage pipeline: run() and run_streaming(), disk-cached
+  orchestrator/         graph.py: LangGraph StateGraph; pipeline.py: run() and run_streaming(), disk-cached
   routing/router.py     tier policy + quota failover
-  llm_clients/          gemini (google-genai) · ollama · demo (fixture) · mock
+  llm_clients/          gemini (langchain-google-genai) · ollama · demo (fixture) · mock, all as LangChain chat models
   data_ingestion/       pypdf loader
   chunking_embeddings/  chunker + sentence-transformers embedder
   vector_store/         FAISS build / save / load / search
   retrieval/            top-k retriever with framework filter
   cache/                SHA-keyed disk cache
-scripts/                build_index.py · evaluate.py · record_demo.py
+scripts/                build_index.py · evaluate.py · record_demo.py · bench_live.py · bench_prompts.py
 data/                   sample case · demo fixture · eval cases
 corpus/                 reference PDFs (third-party, see corpus/README.md)
 tests/                  pytest suite
@@ -280,7 +330,7 @@ deploy/                 container entrypoint + Hugging Face Space card
 
 ## 🧰 Stack
 
-Python · Google Gemini 2.5 (`google-genai`) · Ollama (optional) · sentence-transformers (MiniLM-L6-v2) · FAISS · pypdf · Streamlit · FastAPI · pydantic · tenacity · uv · pytest · ruff · GitHub Actions · Docker
+Python · LangChain + LangGraph · Google Gemini 2.5 (`langchain-google-genai`) · Ollama (optional) · sentence-transformers (MiniLM-L6-v2) · FAISS · pypdf · Streamlit · FastAPI · pydantic · tenacity · uv · pytest · ruff · GitHub Actions · Docker
 
 ## ⚠️ Limitations
 

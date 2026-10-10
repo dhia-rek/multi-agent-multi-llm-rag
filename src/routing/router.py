@@ -15,6 +15,7 @@ Rule of thumb:
 from __future__ import annotations
 
 import hashlib
+import threading
 from dataclasses import dataclass
 from typing import Literal
 
@@ -50,6 +51,8 @@ class Router:
         self._has_ollama = bool(settings.ollama_model)
         # Tiers that hit a permanent (daily) quota cap during this run.
         self._dead_tiers: set[str] = set()
+        # Graph branches run in threads: guard lazy client creation and tier failover.
+        self._lock = threading.RLock()
         if self.demo:
             log.warning("DEMO MODE — agents replay a recorded Gemini run, not a live LLM.")
         elif not self._has_gemini:
@@ -87,40 +90,44 @@ class Router:
     def mark_exhausted(self, tier: str) -> None:
         """Called by callers when a tier returns a daily-quota error.
         We swap that tier's client for a Mock so the pipeline still completes."""
-        if tier not in self._dead_tiers:
-            log.warning("Tier '%s' marked exhausted; falling back to mock.", tier)
-        self._dead_tiers.add(tier)
-        if tier == "fast":
-            self._fast = MockLLMClient(tier="fast")
-        elif tier == "powerful":
-            self._powerful = MockLLMClient(tier="powerful")
-        elif tier == "local":
-            self._local = MockLLMClient(tier="local")
+        with self._lock:
+            if tier not in self._dead_tiers:
+                log.warning("Tier '%s' marked exhausted; falling back to mock.", tier)
+            self._dead_tiers.add(tier)
+            if tier == "fast":
+                self._fast = MockLLMClient(tier="fast")
+            elif tier == "powerful":
+                self._powerful = MockLLMClient(tier="powerful")
+            elif tier == "local":
+                self._local = MockLLMClient(tier="local")
 
     def fast(self) -> BaseLLMClient:
-        if self._fast is None:
-            self._fast = (
-                GeminiClient(settings.gemini_fast_model, tier="fast")
-                if self._has_gemini and "fast" not in self._dead_tiers
-                else self._offline_client("fast")
-            )
-        return self._fast
+        with self._lock:
+            if self._fast is None:
+                self._fast = (
+                    GeminiClient(settings.gemini_fast_model, tier="fast")
+                    if self._has_gemini and "fast" not in self._dead_tiers
+                    else self._offline_client("fast")
+                )
+            return self._fast
 
     def powerful(self) -> BaseLLMClient:
-        if self._powerful is None:
-            self._powerful = (
-                GeminiClient(settings.gemini_powerful_model, tier="powerful")
-                if self._has_gemini and "powerful" not in self._dead_tiers
-                else self._offline_client("powerful")
-            )
-        return self._powerful
+        with self._lock:
+            if self._powerful is None:
+                self._powerful = (
+                    GeminiClient(settings.gemini_powerful_model, tier="powerful")
+                    if self._has_gemini and "powerful" not in self._dead_tiers
+                    else self._offline_client("powerful")
+                )
+            return self._powerful
 
     def local(self) -> BaseLLMClient | None:
         if not self._has_ollama:
             return None
-        if self._local is None:
-            self._local = OllamaClient()
-        return self._local
+        with self._lock:
+            if self._local is None:
+                self._local = OllamaClient()
+            return self._local
 
     def decide(
         self,
@@ -152,10 +159,11 @@ class Router:
         criticality: Level = "medium",
     ) -> tuple[BaseLLMClient, RoutingDecision]:
         decision = self.decide(task_type, complexity, criticality)
-        client = {
-            "fast": self.fast(),
-            "powerful": self.powerful(),
-            "local": self.local() or self.fast(),
-        }[decision.tier]
+        if decision.tier == "fast":
+            client = self.fast()
+        elif decision.tier == "powerful":
+            client = self.powerful()
+        else:
+            client = self.local() or self.fast()
         log.info("Routing → %s (%s)", client.name, decision.reason)
         return client, decision

@@ -29,3 +29,10 @@ class BaseLLMClient(ABC):
     @abstractmethod
     def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
         ...
+
+    def as_chat_model(self, thinking_budget: int | None = None):
+        """This client as a LangChain chat model. Offline clients use the generic adapter;
+        Gemini overrides this with a native ChatGoogleGenerativeAI."""
+        from src.llm_clients.langchain_chat import ClientChatModel
+
+        return ClientChatModel(client=self)
