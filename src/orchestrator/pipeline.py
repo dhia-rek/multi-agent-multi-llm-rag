@@ -12,6 +12,7 @@ Two run modes:
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -27,6 +28,21 @@ log = get_logger(__name__)
 
 @dataclass
 class PipelineTrace:
+    """Everything produced by one run; fields stay None/empty until their stage finishes.
+
+    Attributes:
+        business_case: The input text.
+        plan: Planner result.
+        retrieval: Merged retrieved passages.
+        framework: Framework agent result.
+        canvas: Canvas analysis result.
+        strategy: Strategist result.
+        roadmap: Roadmap result.
+        evaluation: Evaluator result (None if skipped).
+        timings: Seconds per stage.
+        model_per_stage: Model name that served each stage.
+    """
+
     business_case: str
     plan: AgentResult | None = None
     retrieval: list[RetrievedPassage] = field(default_factory=list)
@@ -39,7 +55,9 @@ class PipelineTrace:
     model_per_stage: dict[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
+        """JSON-friendly view of the trace (retrieval previews cut to 300 chars, scores rounded)."""
         def _agent(a: AgentResult | None) -> dict | None:
+            """Summarise one agent result, or None if the stage has not run."""
             if a is None:
                 return None
             return {
@@ -77,23 +95,45 @@ _ATTR = {**RESULT_FIELD, "retrieval": "retrieval"}
 
 
 class Orchestrator:
-    def __init__(self, router: Router | None = None, retriever: Retriever | None = None):
+    """Runs the agent graph with a disk cache keyed on case, evaluator flag and active models."""
+
+    def __init__(self, router: Router | None = None, retriever: Retriever | None = None) -> None:
+        """Build the graph; default router and retriever are created when not given."""
         self.router = router or Router()
         self.retriever = retriever or Retriever()
         self.graph = build_graph(self.router, self.retriever)
         self.cache = DiskCache("pipeline_v2")  # v2: LangGraph orchestration + reworked prompts; old traces are not reused
 
     def run(self, business_case: str, *, run_evaluator: bool = True) -> PipelineTrace:
-        """Drain the streaming run and return the final trace."""
+        """Drain the streaming run and return the final trace.
+
+        Args:
+            business_case: The case text to analyse.
+            run_evaluator: Whether to run the final evaluator stage.
+
+        Returns:
+            The completed trace.
+        """
         trace = None
         for _stage, trace in self.run_streaming(business_case, run_evaluator=run_evaluator):  # noqa: B007
             pass
         assert trace is not None
         return trace
 
-    def run_streaming(self, business_case: str, *, run_evaluator: bool = True):
+    def run_streaming(self, business_case: str, *, run_evaluator: bool = True) -> Iterator[tuple[str, PipelineTrace]]:
         """Yield (stage_name, trace_so_far) after each stage completes.
-        Lets the UI render progressively. Final yield is ('done', trace)."""
+
+        Lets the UI render progressively. Final yield is ('done', trace). On a
+        cache hit it yields 'cached' then 'done' with the stored trace. Traces
+        are cached only if no tier fell back to a mock and every output parsed.
+
+        Args:
+            business_case: The case text to analyse.
+            run_evaluator: Whether to run the final evaluator stage.
+
+        Yields:
+            Tuples of stage name and the trace as filled so far.
+        """
         cache_key = {
             "business_case": business_case,
             "evaluator": run_evaluator,

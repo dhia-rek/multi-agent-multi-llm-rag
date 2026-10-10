@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import streamlit as st
@@ -12,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.edu_content import AGENTS  # noqa: E402
-from src.routing.router import Router  # noqa: E402
+from src.routing.router import Level, Router, TaskType  # noqa: E402
 from src.utils.config import settings  # noqa: E402
 
 st.set_page_config(page_title="Multi-LLM Routing", page_icon="🧭", layout="wide")
@@ -99,7 +100,8 @@ complexity = col2.selectbox("complexity", ["low", "medium", "high"], index=1)
 criticality = col3.selectbox("criticality", ["low", "medium", "high"], index=1)
 
 router = Router()
-decision = router.decide(task_type, complexity, criticality)
+# selectbox options are exactly the router's Literal values
+decision = router.decide(cast(TaskType, task_type), cast(Level, complexity), cast(Level, criticality))
 
 st.success(f"→ Routed to **{decision.tier}** tier")
 st.caption(decision.reason)

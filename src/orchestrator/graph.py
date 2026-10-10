@@ -29,6 +29,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.base import AgentResult, BaseAgent
 from src.agents.canvas_analysis import CanvasAnalysisAgent
@@ -48,10 +49,12 @@ MAX_RETRIES = 1  # extra attempts after an unparsable answer from a live model
 
 
 def merge(a: dict | None, b: dict | None) -> dict:
+    """State reducer: shallow-merge dicts, later keys win (parallel branches write distinct keys)."""
     return {**(a or {}), **(b or {})}
 
 
 def add(a: dict | None, b: dict | None) -> dict:
+    """State reducer: sum numeric values per key, so retries/time accumulate across attempts."""
     out = dict(a or {})
     for k, v in (b or {}).items():
         out[k] = out.get(k, 0) + v
@@ -59,6 +62,16 @@ def add(a: dict | None, b: dict | None) -> dict:
 
 
 class PipelineState(TypedDict, total=False):
+    """LangGraph state.
+
+    Each agent result lands in its own field once parsed;
+    a missing field is what makes a conditional edge loop back to retry.
+
+    `timings` (seconds per stage), `model_per_stage`, `retries` (extra retry counts)
+    and `spent` (seconds summed over attempts) use reducers so concurrent
+    branches can update them without overwriting each other.
+    """
+
     business_case: str
     run_evaluator: bool
     plan: AgentResult
@@ -84,20 +97,34 @@ def as_text(value: Any) -> str:
 
 
 def is_parsed(res: AgentResult) -> bool:
+    """True if the agent output was parsed into JSON (dict or list), not left as raw text."""
     return isinstance(res.output, (dict, list))
 
 
 def is_offline(res: AgentResult) -> bool:
+    """True if a mock or demo client produced the result (retrying would not help)."""
     return res.model.startswith(("mock-", "demo-"))
 
 
 def _plan_obj(state: PipelineState) -> dict:
+    """The planner's parsed output, or {} if absent or unparsed."""
     plan = state.get("plan")
     return plan.output if plan is not None and isinstance(plan.output, dict) else {}
 
 
 def build_inputs(stage: str, s: PipelineState) -> dict[str, str]:
-    """Prompt variables per agent, trimmed to what each prompt needs."""
+    """Prompt variables per agent, trimmed to what each prompt needs.
+
+    Args:
+        stage: Agent name (planner, framework, canvas, strategist, roadmap, evaluator).
+        s: Current pipeline state; upstream results must already be present.
+
+    Returns:
+        Prompt variable name -> text, truncated by character limits.
+
+    Raises:
+        KeyError: For an unknown stage, or if a required upstream result is missing.
+    """
     plan = _plan_obj(s)
     ctx = s.get("context", "")
     if stage == "planner":
@@ -141,6 +168,14 @@ RESULT_FIELD = {
 
 
 def merge_retrieval(per_query: list[list[RetrievedPassage]]) -> list[RetrievedPassage]:
+    """Keep the first passage for each chunk id, then sort retained passages by score.
+
+    Args:
+        per_query: One passage list per retrieval query.
+
+    Returns:
+        At most `settings.top_k * 2` passages sorted by descending score.
+    """
     seen: set[str] = set()
     merged: list[RetrievedPassage] = []
     for passages in per_query:
@@ -153,8 +188,16 @@ def merge_retrieval(per_query: list[list[RetrievedPassage]]) -> list[RetrievedPa
     return merged[: settings.top_k * 2]
 
 
-def build_graph(router: Router, retriever: Retriever):
-    """Compile the pipeline graph for this router/retriever."""
+def build_graph(router: Router, retriever: Retriever) -> CompiledStateGraph:
+    """Compile the pipeline graph for this router/retriever.
+
+    Args:
+        router: Supplies the LLM client for each agent.
+        retriever: Used by the retrieval node.
+
+    Returns:
+        The compiled graph; stream it with `{"business_case": ..., "run_evaluator": ...}`.
+    """
     agents: dict[str, BaseAgent] = {
         "planner": PlannerAgent(router),
         "framework": FrameworkAgent(router),
@@ -164,10 +207,16 @@ def build_graph(router: Router, retriever: Retriever):
         "evaluator": EvaluatorAgent(router),
     }
 
-    def agent_node(stage: str) -> Callable[[PipelineState], dict]:
+    def agent_node(stage: str) -> Callable[[PipelineState], dict[str, Any]]:
+        """Node factory: run one agent.
+
+        On unparsable live output it returns only retry counters (no result
+        field) so the conditional edge loops back.
+        """
         agent, field = agents[stage], RESULT_FIELD[stage]
 
-        def node(state: PipelineState) -> dict:
+        def node(state: PipelineState) -> dict[str, Any]:
+            """Run the agent once; return its result, or retry counters if unparsable."""
             attempt = state.get("retries", {}).get(stage, 0)
             t = time.time()
             res = agent.run(**build_inputs(stage, state))
@@ -185,6 +234,7 @@ def build_graph(router: Router, retriever: Retriever):
         return node
 
     def retrieval(state: PipelineState) -> dict:
+        """Run the planner's queries (raw case text if it gave none) and merge the passages."""
         t = time.time()
         plan = _plan_obj(state)
         queries = plan.get("retrieval_queries")
@@ -199,27 +249,32 @@ def build_graph(router: Router, retriever: Retriever):
         }
 
     def join(state: PipelineState) -> dict:
+        """No-op barrier node after framework and canvas; routing happens in `join_edge`."""
         return {}
 
     def retry_edge(stage: str, nxt: str) -> Callable[[PipelineState], str]:
+        """Edge router: go to `nxt` once the stage has a result, else back to the stage."""
         field = RESULT_FIELD[stage]
         return lambda s: nxt if s.get(field) is not None else stage
 
     def join_edge(s: PipelineState) -> str:
+        """Route after join: strategist if both parallel branches are done, else END."""
         # Fires once per finished branch; only the last one to arrive moves on.
         return "strategist" if s.get("framework") is not None and s.get("canvas") is not None else END
 
     def eval_edge(s: PipelineState) -> str:
+        """Route to the evaluator unless `run_evaluator` is False."""
         return "evaluator" if s.get("run_evaluator", True) else END
 
     def roadmap_edge(s: PipelineState) -> str:
+        """Retry roadmap if it has no result, else continue via `eval_edge`."""
         if s.get("roadmap") is None:
             return "roadmap"  # unparsable output: retry
         return eval_edge(s)
 
     g = StateGraph(PipelineState)
     for stage in agents:
-        g.add_node(stage, agent_node(stage))
+        g.add_node(stage, agent_node(stage))  # type: ignore[call-overload]  # LangGraph stubs reject a TypedDict node factory
     g.add_node("retrieval", retrieval)
     g.add_node("join", join)
 
@@ -234,4 +289,3 @@ def build_graph(router: Router, retriever: Retriever):
     g.add_conditional_edges("roadmap", roadmap_edge, ["roadmap", "evaluator", END])
     g.add_conditional_edges("evaluator", retry_edge("evaluator", END), ["evaluator", END])
     return g.compile()
-

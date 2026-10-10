@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import time
+from typing import Any
 
 from google.genai import errors
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -37,9 +38,14 @@ _TRANSIENT_SERVER_CODES = {500, 502, 503, 504}
 
 
 class TransientError(RuntimeError):
-    """Safe to retry after `delay` seconds."""
+    """Safe to retry after `delay` seconds.
 
-    def __init__(self, message: str, delay: float):
+    Attributes:
+        delay: Suggested wait in seconds before the next attempt.
+    """
+
+    def __init__(self, message: str, delay: float) -> None:
+        """Store the error message and retry delay."""
         super().__init__(message)
         self.delay = delay
 
@@ -49,12 +55,17 @@ class RateLimitedError(TransientError):
 
 
 def _suggested_delay(err: Exception) -> float | None:
-    """Gemini 429s embed a RetryInfo block (`'retryDelay': '34s'`). Honour it."""
+    """Gemini 429s embed a RetryInfo block (`'retryDelay': '34s'`). Honour it.
+
+    Returns:
+        The suggested delay in seconds, or None if the error carries none.
+    """
     m = re.search(r"retry_?delay['\"]?\s*[:{]\s*['\"]?(?:seconds:\s*)?(\d+)", str(err), re.IGNORECASE)
     return float(m.group(1)) if m else None
 
 
 def _wait_server_delay(state: RetryCallState) -> float:
+    """Tenacity wait strategy: the error's own delay (default 30 s), capped at 60 s."""
     exc = state.outcome.exception() if state.outcome else None
     delay = getattr(exc, "delay", DEFAULT_RETRY_DELAY)
     return min(delay, MAX_RETRY_DELAY)
@@ -86,8 +97,21 @@ def _classify(e: Exception, model: str) -> Exception | None:
     sleep=lambda s: time.sleep(s),  # late-bound so tests can patch time.sleep
     reraise=True,
 )
-def invoke_with_retry(model: BaseChatModel, messages: list[BaseMessage]):
-    """`model.invoke` with Gemini-aware retry. Offline models never raise these errors."""
+def invoke_with_retry(model: BaseChatModel, messages: list[BaseMessage]) -> BaseMessage:
+    """`model.invoke` with Gemini-aware retry. Offline models never raise these errors.
+
+    Args:
+        model: Chat model to call.
+        messages: Conversation to send.
+
+    Returns:
+        The model's reply message.
+
+    Raises:
+        QuotaExhaustedError: On daily-quota errors (never retried).
+        TransientError: If rate-limit/5xx errors persist after 3 attempts.
+        Exception: Any unclassified error is re-raised unchanged.
+    """
     try:
         return model.invoke(messages)
     except Exception as e:
@@ -97,8 +121,16 @@ def invoke_with_retry(model: BaseChatModel, messages: list[BaseMessage]):
         raise mapped from e
 
 
-def usage_from_message(msg) -> dict | None:
-    """Normalise LangChain usage metadata to the keys the pipeline has always reported."""
+def usage_from_message(msg: BaseMessage) -> dict | None:
+    """Normalise LangChain usage metadata to the keys the pipeline has always reported.
+
+    Args:
+        msg: Reply message that may carry `usage_metadata`.
+
+    Returns:
+        Dict with prompt_tokens, output_tokens (thinking excluded),
+        thinking_tokens and finish_reason, or None without usage metadata.
+    """
     um = getattr(msg, "usage_metadata", None)
     if not um:
         return None
@@ -114,7 +146,14 @@ def usage_from_message(msg) -> dict | None:
 
 
 class GeminiClient(BaseLLMClient):
-    def __init__(self, model: str, tier: str):
+    """Gemini model served through `ChatGoogleGenerativeAI`, one instance per thinking budget."""
+
+    def __init__(self, model: str, tier: str) -> None:
+        """Bind to a model name and tier.
+
+        Raises:
+            RuntimeError: If GOOGLE_API_KEY is not configured.
+        """
         if not settings.google_api_key:
             raise RuntimeError(
                 "GOOGLE_API_KEY not set. Get a free key at "
@@ -125,6 +164,15 @@ class GeminiClient(BaseLLMClient):
         self._models: dict[int, ChatGoogleGenerativeAI] = {}
 
     def as_chat_model(self, thinking_budget: int | None = None) -> ChatGoogleGenerativeAI:
+        """Return the (cached) native chat model for a thinking budget.
+
+        Args:
+            thinking_budget: Thinking tokens. None means the configured budget
+                for the powerful tier and 0 (thinking off) for the fast tier.
+
+        Returns:
+            A JSON-mode model whose max_output_tokens includes the budget.
+        """
         if thinking_budget is None:
             thinking_budget = settings.gemini_thinking_budget if self.tier == "powerful" else 0
         if thinking_budget not in self._models:
@@ -139,7 +187,20 @@ class GeminiClient(BaseLLMClient):
             )
         return self._models[thinking_budget]
 
-    def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
+        """Call Gemini with retry handling.
+
+        Args:
+            prompt: User prompt.
+            system: Optional system prompt.
+            **kwargs: Ignored.
+
+        Returns:
+            Response text plus token usage.
+
+        Raises:
+            QuotaExhaustedError: On daily-quota exhaustion.
+        """
         messages: list[BaseMessage] = ([SystemMessage(system)] if system else []) + [HumanMessage(prompt)]
         msg = invoke_with_retry(self.as_chat_model(), messages)
         text = msg.content if isinstance(msg.content, str) else str(msg.text)

@@ -14,6 +14,12 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 @dataclass(frozen=True)
 class Settings:
+    """Immutable app settings.
+
+    Env-backed defaults are read once at import time (class-body evaluation), so
+    changing the environment afterwards has no effect on the ``settings`` singleton.
+    """
+
     project_root: Path = PROJECT_ROOT
     corpus_dir: Path = PROJECT_ROOT / "corpus"
     index_dir: Path = PROJECT_ROOT / "vector_store" / "index"
@@ -45,6 +51,11 @@ class Settings:
 
     @property
     def demo_active(self) -> bool:
+        """Whether to replay recorded fixture outputs instead of calling a live LLM.
+
+        True for ``DEMO_MODE`` on/1/true, False for off/0/false; otherwise ("auto")
+        True only when no Google API key is configured.
+        """
         if self.demo_mode in {"on", "1", "true"}:
             return True
         if self.demo_mode in {"off", "0", "false"}:

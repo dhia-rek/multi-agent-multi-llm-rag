@@ -6,6 +6,8 @@ from src.agents.prompts import EVALUATOR_SYSTEM, EVALUATOR_USER
 
 
 class EvaluatorAgent(BaseAgent):
+    """Agent that critiques the roadmap; capped at a 512 thinking-token budget since its input is already-structured JSON."""
+
     name = "evaluator"
     task_type = "evaluation"
     complexity = "medium"

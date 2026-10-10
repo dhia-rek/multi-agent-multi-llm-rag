@@ -4,18 +4,36 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from typing import Any
 
 from src.llm_clients.base import BaseLLMClient, LLMResponse
 from src.utils.config import settings
 
 
 class OllamaClient(BaseLLMClient):
-    def __init__(self, model: str | None = None, host: str | None = None):
+    """Client for a local Ollama daemon (tier "local") via its HTTP /api/generate."""
+
+    def __init__(self, model: str | None = None, host: str | None = None) -> None:
+        """Resolve model (arg, then settings, then "llama3.2") and host (arg, then settings)."""
         self.name = model or settings.ollama_model or "llama3.2"
         self.tier = "local"
         self.host = host or settings.ollama_host
 
-    def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
+    def generate(self, prompt: str, system: str | None = None, **kwargs: Any) -> LLMResponse:
+        """Call Ollama non-streaming.
+
+        Args:
+            prompt: User prompt.
+            system: Optional system prompt.
+            **kwargs: Supports `temperature` (default 0.3) and
+                `max_output_tokens` (default 2048, sent as num_predict).
+
+        Returns:
+            The stripped response text.
+
+        Raises:
+            RuntimeError: If the daemon cannot be reached.
+        """
         body = {
             "model": self.name,
             "prompt": prompt,

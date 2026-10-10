@@ -15,17 +15,33 @@ log = get_logger(__name__)
 
 
 class FaissStore:
+    """Flat inner-product FAISS index plus the parallel list of ``Chunk`` metadata.
+
+    Vectors are expected to be L2-normalized, so inner product equals cosine similarity.
+    Files written to ``index_dir``: the index, pickled chunks and a JSON summary.
+    """
+
     INDEX_FILE = "faiss.index"
     META_FILE = "meta.pkl"
     INFO_FILE = "info.json"
 
-    def __init__(self, index_dir: Path):
+    def __init__(self, index_dir: Path) -> None:
+        """Create ``index_dir`` if missing; the index starts empty (call ``build`` or ``load``)."""
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(parents=True, exist_ok=True)
         self.index: faiss.Index | None = None
         self.chunks: list[Chunk] = []
 
     def build(self, chunks: list[Chunk], embeddings: np.ndarray) -> None:
+        """Build an in-memory index from chunks and their embeddings.
+
+        Args:
+            chunks: Chunk metadata, row-aligned with ``embeddings``.
+            embeddings: float32 array of shape (n_chunks, dim), L2-normalized.
+
+        Raises:
+            ValueError: If the number of chunks and embedding rows differ.
+        """
         if len(chunks) != embeddings.shape[0]:
             raise ValueError("chunks and embeddings size mismatch")
         dim = embeddings.shape[1]
@@ -36,6 +52,11 @@ class FaissStore:
         log.info("FAISS index built: %d vectors of dim %d", self.index.ntotal, dim)
 
     def save(self) -> None:
+        """Write the index, pickled chunks and info JSON to ``index_dir``.
+
+        Raises:
+            RuntimeError: If no index has been built.
+        """
         if self.index is None:
             raise RuntimeError("No index to save. Call build() first.")
         faiss.write_index(self.index, str(self.index_dir / self.INDEX_FILE))
@@ -50,6 +71,11 @@ class FaissStore:
         log.info("Index saved to %s", self.index_dir)
 
     def load(self) -> None:
+        """Load the index and chunks from ``index_dir``.
+
+        Raises:
+            FileNotFoundError: If the index or metadata file is missing.
+        """
         idx_path = self.index_dir / self.INDEX_FILE
         meta_path = self.index_dir / self.META_FILE
         if not idx_path.exists() or not meta_path.exists():
@@ -63,6 +89,19 @@ class FaissStore:
         log.info("Index loaded: %d chunks", len(self.chunks))
 
     def search(self, query_vec: np.ndarray, k: int = 6) -> list[tuple[Chunk, float]]:
+        """Find the nearest chunks to a query vector.
+
+        Args:
+            query_vec: Vector of shape (dim,) or (n, dim). Only the first row's
+                results are returned.
+            k: Number of neighbours to request.
+
+        Returns:
+            (chunk, inner-product score) pairs, best first; FAISS padding entries (-1) are dropped.
+
+        Raises:
+            RuntimeError: If the index is not loaded.
+        """
         if self.index is None:
             raise RuntimeError("Index not loaded.")
         if query_vec.ndim == 1:
@@ -76,6 +115,7 @@ class FaissStore:
         return out
 
     def info(self) -> dict:
+        """Return the saved info JSON (n_chunks, dim, frameworks), or {} if absent."""
         path = self.index_dir / self.INFO_FILE
         if path.exists():
             return json.loads(path.read_text())

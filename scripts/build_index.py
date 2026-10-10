@@ -1,4 +1,5 @@
 """Offline index build. Run this once after dropping PDFs into corpus/.
+
 Embeddings + FAISS index are persisted to vector_store/index/.
 
 Usage:
@@ -17,6 +18,7 @@ log = get_logger(__name__)
 
 
 def main() -> None:
+    """Load, chunk and embed the corpus, then build and save the FAISS index."""
     log.info("Loading corpus from %s", settings.corpus_dir)
     docs = load_corpus(settings.corpus_dir)
 

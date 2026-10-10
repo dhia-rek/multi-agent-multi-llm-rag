@@ -8,17 +8,20 @@ chars/token on this text.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from src.agents import prompts
 from src.orchestrator.graph import as_text
 from src.utils.config import settings
 
 
-def old_text(v):
+def old_text(v: Any) -> str:
+    """Serialise like main did: indent=2 JSON for dicts/lists, str() otherwise."""
     return json.dumps(v, indent=2, ensure_ascii=False) if isinstance(v, (dict, list)) else str(v)
 
 
 def main() -> None:
+    """Print old vs new prompt sizes (characters) for strategist, roadmap and evaluator."""
     fx = json.loads(settings.demo_fixture.read_text(encoding="utf-8"))
     plan, fw, canvas, strat, road = (fx[k] for k in ("planner", "framework", "canvas", "strategist", "roadmap"))
 

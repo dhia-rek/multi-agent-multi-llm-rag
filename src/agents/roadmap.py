@@ -6,6 +6,8 @@ from src.agents.prompts import ROADMAP_SYSTEM, ROADMAP_USER
 
 
 class RoadmapAgent(BaseAgent):
+    """Agent that produces the time-phased roadmap; thinking is disabled (budget 0) since it only reshapes a finished strategy."""
+
     name = "roadmap"
     task_type = "generation"
     complexity = "high"

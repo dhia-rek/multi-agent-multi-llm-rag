@@ -1,7 +1,7 @@
 """Load PDF documents from the corpus directory."""
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +14,8 @@ log = get_logger(__name__)
 
 @dataclass
 class RawDocument:
+    """One parsed PDF: provenance plus per-page text."""
+
     source: str            # absolute path
     framework: str         # subfolder name, e.g. "dt_framework" or "bikeshop_roadmap"
     title: str             # filename without extension
@@ -21,12 +23,24 @@ class RawDocument:
 
 
 def _extract_pdf(path: Path) -> list[str]:
+    """Return stripped text for each page of a PDF ('' when a page has no extractable text)."""
     reader = PdfReader(str(path))
     return [(p.extract_text() or "").strip() for p in reader.pages]
 
 
 def load_corpus(corpus_dir: Path) -> list[RawDocument]:
-    """Walk every subfolder of corpus_dir and parse PDFs found there."""
+    """Walk every subfolder of corpus_dir and parse PDFs found there.
+
+    Args:
+        corpus_dir: Root directory searched recursively for ``*.pdf``.
+
+    Returns:
+        One RawDocument per PDF, in sorted path order; ``framework`` is the PDF's
+        immediate parent folder name.
+
+    Raises:
+        FileNotFoundError: If ``corpus_dir`` does not exist.
+    """
     if not corpus_dir.exists():
         raise FileNotFoundError(f"Corpus directory not found: {corpus_dir}")
 
@@ -47,8 +61,8 @@ def load_corpus(corpus_dir: Path) -> list[RawDocument]:
     return docs
 
 
-def iter_pages(docs: Iterable[RawDocument]):
-    """Yield (doc, page_number, page_text) for non-empty pages."""
+def iter_pages(docs: Iterable[RawDocument]) -> Iterator[tuple[RawDocument, int, str]]:
+    """Yield (doc, page_number, page_text) for non-empty pages; page numbers are 1-based."""
     for doc in docs:
         for i, text in enumerate(doc.pages, start=1):
             if text:

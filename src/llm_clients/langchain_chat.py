@@ -15,16 +15,24 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 def _text(msg: BaseMessage) -> str:
+    """Message content as a string (stringifies non-str content blocks)."""
     return msg.content if isinstance(msg.content, str) else str(msg.content)
 
 
 class ClientChatModel(BaseChatModel):
-    """Expose a `BaseLLMClient` as a LangChain chat model."""
+    """Expose a `BaseLLMClient` as a LangChain chat model.
+
+    Only system and human messages are forwarded; other message types are dropped.
+
+    Attributes:
+        client: The wrapped `BaseLLMClient`.
+    """
 
     client: Any
 
     @property
     def _llm_type(self) -> str:
+        """LangChain model-type label, e.g. "client-fast"."""
         return f"client-{getattr(self.client, 'tier', 'unknown')}"
 
     def _generate(
@@ -34,6 +42,17 @@ class ClientChatModel(BaseChatModel):
         run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
+        """Join system/human messages, call the client and wrap the reply.
+
+        Args:
+            messages: Conversation; system and human parts are each joined by blank lines.
+            stop: Ignored (clients don't support stop sequences).
+            run_manager: Ignored.
+            **kwargs: Ignored.
+
+        Returns:
+            A single-generation result with usage metadata when the client reported it.
+        """
         system = "\n\n".join(_text(m) for m in messages if isinstance(m, SystemMessage)) or None
         user = "\n\n".join(_text(m) for m in messages if isinstance(m, HumanMessage))
         resp = self.client.generate(user, system=system)

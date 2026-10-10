@@ -14,4 +14,5 @@ logging.basicConfig(
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Return the logger for ``name``; importing this module configures root logging (level from ``LOG_LEVEL``)."""
     return logging.getLogger(name)

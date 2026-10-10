@@ -21,6 +21,11 @@ ATTR = {"planner": "plan", "strategist": "strategy", "evaluator": "evaluation"}
 
 
 def main() -> int:
+    """Run the sample case live and write the demo fixture.
+
+    Returns:
+        0 on success; 1 if no live key, a tier fell back to mock, or an output was not valid JSON.
+    """
     if not settings.google_api_key or settings.demo_active:
         print("Needs GOOGLE_API_KEY and DEMO_MODE not forced on.")
         return 1
