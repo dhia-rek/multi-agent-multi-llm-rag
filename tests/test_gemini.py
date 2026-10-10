@@ -66,8 +66,35 @@ def test_per_minute_429_sleeps_then_gives_up_after_retries(monkeypatch, no_sleep
     with pytest.raises(gemini.RateLimitedError):
         client._call("hi", None)
     assert client._client.models.calls == 3
-    # one server-suggested sleep per attempt, no extra tenacity backoff
-    assert [s for s in no_sleep if s] == [7.0, 7.0, 7.0]  # tenacity sleeps 0 between
+    # exactly the server-suggested delay between attempts, nothing after the last one
+    assert no_sleep == [7.0, 7.0]
+
+
+def test_per_minute_429_recovers_and_caps_delay(monkeypatch, no_sleep):
+    err = errors.ClientError(
+        429, {"error": {"code": 429, "message": "slow down 'retryDelay': '90s'", "status": "X"}}
+    )
+    client = _client(monkeypatch, err)
+    models = client._client.models
+
+    def flaky(**kwargs):
+        models.calls += 1
+        if models.calls == 1:
+            raise err
+        return "ok"
+
+    models.generate_content = flaky
+    assert client._call("hi", None) == "ok"
+    assert models.calls == 2
+    assert no_sleep == [gemini.MAX_RETRY_DELAY]
+
+
+def test_per_minute_429_without_hint_uses_default_delay(monkeypatch, no_sleep):
+    err = errors.ClientError(429, {"error": {"code": 429, "message": "slow down", "status": "X"}})
+    client = _client(monkeypatch, err)
+    with pytest.raises(gemini.RateLimitedError):
+        client._call("hi", None)
+    assert no_sleep == [gemini.DEFAULT_RETRY_DELAY] * 2
 
 
 def test_other_client_errors_propagate(monkeypatch, no_sleep):

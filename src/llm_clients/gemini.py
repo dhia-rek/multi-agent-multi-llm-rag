@@ -2,9 +2,10 @@
 
 Behaviour
 ---------
-- Honours the retry delay returned by Gemini on a per-minute rate limit (HTTP 429)
-  so we don't hammer the API uselessly.
-- Retries with exponential backoff on those rate limits.
+- On a per-minute rate limit (HTTP 429) waits exactly the retry delay Gemini
+  suggests (30 s if it gives none, capped at 60 s), up to 3 attempts. The wait
+  lives in tenacity only, so there is no double wait and no sleep after the
+  last attempt.
 - Daily-quota errors raise instantly so the router can fail over to another tier
   rather than retrying for minutes.
 """
@@ -16,6 +17,7 @@ import time
 from google import genai
 from google.genai import errors, types
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -28,14 +30,29 @@ from src.utils.logging import get_logger
 log = get_logger(__name__)
 
 
+DEFAULT_RETRY_DELAY = 30.0
+MAX_RETRY_DELAY = 60.0
+
+
 class RateLimitedError(RuntimeError):
-    """Per-minute rate limit hit; safe to retry after a short sleep."""
+    """Per-minute rate limit hit; safe to retry after `delay` seconds."""
+
+    def __init__(self, message: str, delay: float):
+        super().__init__(message)
+        self.delay = delay
 
 
 def _suggested_delay(err: Exception) -> float | None:
     """Gemini 429s embed a RetryInfo block (`'retryDelay': '34s'`). Honour it."""
     m = re.search(r"retry_?delay['\"]?\s*[:{]\s*['\"]?(?:seconds:\s*)?(\d+)", str(err), re.IGNORECASE)
     return float(m.group(1)) if m else None
+
+
+def _wait_server_delay(state: RetryCallState) -> float:
+    """tenacity wait: use the delay carried by the RateLimitedError."""
+    exc = state.outcome.exception() if state.outcome else None
+    delay = getattr(exc, "delay", DEFAULT_RETRY_DELAY)
+    return min(delay, MAX_RETRY_DELAY)
 
 
 class GeminiClient(BaseLLMClient):
@@ -51,8 +68,9 @@ class GeminiClient(BaseLLMClient):
 
     @retry(
         stop=stop_after_attempt(3),
-        # No tenacity wait: _call already sleeps the server-suggested delay.
+        wait=_wait_server_delay,
         retry=retry_if_exception_type(RateLimitedError),
+        sleep=lambda s: time.sleep(s),  # late-bound so tests can patch time.sleep
         reraise=True,
     )
     def _call(self, prompt: str, cfg: types.GenerateContentConfig):
@@ -66,11 +84,10 @@ class GeminiClient(BaseLLMClient):
             if "PerDay" in msg:
                 log.error("Gemini daily quota exhausted for %s.", self.name)
                 raise QuotaExhaustedError(self.name, msg) from e
-            # Per-minute: sleep the suggested delay, then let tenacity retry.
-            wait = _suggested_delay(e) or 30.0
-            log.warning("Gemini per-minute rate-limit on %s, sleeping %.1fs", self.name, wait)
-            time.sleep(min(wait, 60))
-            raise RateLimitedError(msg) from e
+            # Per-minute: tenacity waits the suggested delay, then retries.
+            delay = _suggested_delay(e) or DEFAULT_RETRY_DELAY
+            log.warning("Gemini per-minute rate-limit on %s, retry in %.1fs", self.name, min(delay, MAX_RETRY_DELAY))
+            raise RateLimitedError(msg, delay) from e
 
     def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
         cfg = types.GenerateContentConfig(
