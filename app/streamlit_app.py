@@ -1,186 +1,139 @@
-"""
-Digital Transformation Roadmap Generator
-Student Project - ECE MSc AI (2025-26)
-Multi-LLM Architectures & Eco-Responsible AI
+"""Home page — architecture overview, status, and what each layer does.
 
-Project Team: Dhia & Roy
-Course: ECE Paris - Multi-LLM Architectures
-
-Description:
-    Interactive Streamlit interface for analyzing business cases
-    and generating structured digital transformation roadmaps.
-    
-Features:
-    - Free-text business case input
-    - Multi-agent analysis pipeline
-    - Framework-grounded recommendations
-    - Real-time progress tracking
-    - Result download (JSON format)
+Run from the project root:
+    streamlit run app/streamlit_app.py
 """
+from __future__ import annotations
 
 import sys
-import json
 from pathlib import Path
 
 import streamlit as st
 
-# Setup path for imports
+# Make `src.*` and `app.*` importable when launched via `streamlit run`.
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from src.utils.config import settings
-from src.vector_store.faiss_store import FaissStore
-from src.orchestrator.pipeline import Orchestrator
+from app.edu_content import AGENTS, PIPELINE_BLOCKS  # noqa: E402
+from src.utils.config import settings  # noqa: E402
+from src.vector_store.faiss_store import FaissStore  # noqa: E402
 
-# Page configuration
-st.set_page_config(page_title="DT Roadmap Generator", layout="wide")
-
-# ===== SIDEBAR =====
-with st.sidebar:
-    st.title("DT Roadmap Generator")
-    st.write("Transform your business case into a digital transformation roadmap")
-    st.divider()
-    
-    # Check system status
-    st.subheader("System Status")
-    
-    try:
-        info = FaissStore(settings.index_dir).info()
-        if info:
-            chunks = info.get('n_chunks', 0)
-            st.success(f"Vector index ready: {chunks} chunks loaded")
-        else:
-            st.error("Vector index not found")
-    except Exception as e:
-        st.error(f"Vector index error: {str(e)}")
-
-    # Check API key
-    if settings.google_api_key:
-        st.success("Gemini API key is configured")
-    else:
-        st.warning("No API key - running in MOCK mode")
-    
-    st.caption(f"LLM Model: {settings.gemini_fast_model}")
-
-
-# ===== MAIN PAGE =====
-st.title("Digital Transformation Roadmap Generator")
-
-st.write("""
-This tool analyzes your business case and generates a digital transformation roadmap.
-
-**How it works:**
-1. Enter your company details and transformation needs
-2. The system searches our knowledge base of frameworks
-3. Multiple AI agents analyze your situation
-4. You get a structured roadmap with phases and initiatives
-""")
-
-st.divider()
-
-# Input form
-st.subheader("Enter Your Business Case")
-
-business_case = st.text_area(
-    "Describe your company, goals, budget, and constraints:",
-    height=150,
-    placeholder="Example: We are a bakery with 5 employees. We want to launch an online store and implement a customer loyalty program. Budget: 15,000 EUR. Timeline: 6 months."
+st.set_page_config(
+    page_title="DT Roadmap — Multi-Agent RAG (Edu)",
+    page_icon="🧭",
+    layout="wide",
 )
 
-# Options
-col1, col2 = st.columns([3, 1])
-with col1:
-    run_button = st.button("Generate Roadmap", type="primary", use_container_width=True)
-with col2:
-    include_evaluation = st.checkbox("Evaluate Result", value=True)
+
+@st.cache_data(show_spinner=False)
+def index_info() -> dict:
+    return FaissStore(settings.index_dir).info()
+
+
+# ─── Sidebar: system status ───────────────────────────────────────────────────
+with st.sidebar:
+    st.title("🧭 DT Roadmap")
+    st.caption("Multi-Agent · Multi-LLM · Local RAG")
+
+    st.subheader("System status")
+    info = index_info()
+    if info:
+        st.success(f"Vector index: **{info.get('n_chunks', 0)}** chunks · dim {info.get('dim', '?')}")
+        st.caption("Frameworks indexed: " + ", ".join(info.get("frameworks", [])))
+    else:
+        st.error("Vector index missing — run `python -m scripts.build_index`")
+
+    if settings.google_api_key:
+        st.success("Gemini API key detected")
+    else:
+        st.warning("No GOOGLE_API_KEY — running in MOCK mode")
+
+    st.markdown(f"**Fast tier:** `{settings.gemini_fast_model}`")
+    st.markdown(f"**Powerful tier:** `{settings.gemini_powerful_model}`")
+    if settings.ollama_model:
+        st.markdown(f"**Local tier:** `{settings.ollama_model}` (Ollama)")
+    else:
+        st.caption("Local tier: not configured")
+
+    st.divider()
+    st.caption("Use the **pages** in the sidebar to explore.")
+
+
+# ─── Main: Hero + architecture ────────────────────────────────────────────────
+st.title("🧭 Multi-Agent · Multi-LLM RAG System")
+st.markdown(
+    "**Goal:** turn a free-text business case into a *credible, framework-grounded* "
+    "digital transformation roadmap, by chaining six specialised agents over a local RAG corpus, "
+    "with explicit Multi-LLM routing and optimisation."
+)
+
+st.subheader("📐 Architecture at a glance")
+cols = st.columns(5)
+for col, block in zip(cols, PIPELINE_BLOCKS):
+    with col:
+        st.markdown(f"### {block['icon']}")
+        st.markdown(f"**{block['name']}**")
+        st.caption(block["what"])
+
+with st.expander("📖 Why each layer exists", expanded=False):
+    for block in PIPELINE_BLOCKS:
+        st.markdown(f"**{block['icon']} {block['name']}** — {block['why']}")
 
 st.divider()
 
-# ===== RESULTS =====
-if run_button:
-    # Validate input
-    if not business_case.strip():
-        st.error("Please enter a business case")
-        st.stop()
-    
-    # Create orchestrator and run pipeline
-    try:
-        orchestrator = Orchestrator()
-        status = st.empty()
-        info = st.empty()
-        
-        # Run analysis
-        for stage_name, trace in orchestrator.run_streaming(business_case, run_evaluator=include_evaluation):
-            if stage_name == "cached":
-                status.info("Loaded from cache")
-            elif stage_name != "done":
-                stage_display = stage_name.replace("_", " ").title()
-                status.info(f"Running: {stage_display}...")
-            else:
-                status.success("Analysis complete!")
-                result = trace
-        
-        # Display results
-        st.divider()
-        st.subheader("Your Digital Transformation Roadmap")
-        
-        # Get roadmap from result
-        if result.roadmap and result.roadmap.output:
-            roadmap = result.roadmap.output
-            
-            if isinstance(roadmap, dict):
-                # Display phases
-                if "phases" in roadmap:
-                    st.markdown("### Phases")
-                    for phase in roadmap["phases"]:
-                        with st.expander(f"{phase.get('name')} - {phase.get('duration')}"):
-                            for key, value in phase.items():
-                                if key != "name":
-                                    st.write(f"**{key}**: {value}")
-                
-                # Display initiatives
-                if "initiatives" in roadmap:
-                    st.markdown("### Initiatives")
-                    for initiative in roadmap["initiatives"]:
-                        with st.expander(f"{initiative.get('name')} (Priority: {initiative.get('priority')})"):
-                            for key, value in initiative.items():
-                                if key != "name":
-                                    st.write(f"**{key}**: {value}")
-            
-            # Show execution details
-            st.divider()
-            with st.expander("Show Execution Details"):
-                st.write("**Processing Time:**")
-                for stage, time in result.timings.items():
-                    st.write(f"- {stage}: {time}s")
-                
-                st.write("**Models Used:**")
-                for stage, model in result.model_per_stage.items():
-                    st.write(f"- {stage}: {model}")
-            
-            # Download button
-            st.divider()
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    "Download Roadmap (JSON)",
-                    json.dumps(roadmap, indent=2, ensure_ascii=False),
-                    "roadmap.json",
-                    "application/json"
-                )
-            with col2:
-                st.download_button(
-                    "Download Full Analysis (JSON)",
-                    json.dumps(result.as_dict(), indent=2, ensure_ascii=False),
-                    "full_analysis.json",
-                    "application/json"
-                )
-        
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
-        with st.expander("Show Error Details"):
-            import traceback
-            st.code(traceback.format_exc())
+# ─── Stage diagram (mermaid) ──────────────────────────────────────────────────
+st.subheader("🔁 The pipeline")
+st.markdown(
+    "Here's exactly what runs every time you click **Run pipeline**. "
+    "Each stage produces a structured JSON object that the next stage reads."
+)
+st.graphviz_chart(
+    """
+    digraph G {
+      rankdir=LR;
+      node [shape=box, style="rounded,filled", fillcolor="#eef3ff", fontname="Helvetica"];
+      bc [label="Business case\\n(free text)", fillcolor="#fff3cd"];
+      pl [label="1. Planner\\n(fast)"];
+      rg [label="2. Retrieval\\n(FAISS)", fillcolor="#d4edda"];
+      fw [label="3. Framework\\n(fast)"];
+      cv [label="4. Canvas Analysis\\n(powerful)"];
+      st [label="5. Strategist\\n(powerful)"];
+      rm [label="6. Roadmap\\n(powerful)"];
+      ev [label="7. Evaluator\\n(powerful, optional)", fillcolor="#fde2e2"];
+      out [label="Structured roadmap\\n(JSON)", fillcolor="#fff3cd"];
+      bc -> pl -> rg -> fw -> cv -> st -> rm -> ev -> out;
+    }
+    """,
+    use_container_width=True,
+)
 
 st.divider()
-st.caption("Built with: Multi-Agent RAG | FAISS Vector Store | Multi-LLM Routing")
+
+# ─── Agent cards ──────────────────────────────────────────────────────────────
+st.subheader("🤖 Meet the six agents")
+st.caption("Each has one role, one prompt, one expected output. Click for details.")
+for key, agent in AGENTS.items():
+    with st.expander(f"{agent['icon']}  **{agent['name']}** — {agent['purpose']}"):
+        c1, c2 = st.columns([3, 2])
+        with c1:
+            st.markdown("**What it does**")
+            st.write(agent["what_it_does"])
+            st.markdown(f"**Anchored in:** {agent['framework_anchor']}")
+        with c2:
+            st.markdown("**Routing profile**")
+            st.markdown(
+                f"- task type: `{agent['task_type']}`\n"
+                f"- complexity: `{agent['complexity']}`\n"
+                f"- criticality: `{agent['criticality']}`\n"
+                f"- → routes to **{agent['expected_tier']}** tier"
+            )
+            st.caption(agent["tier_rationale"])
+
+st.divider()
+
+st.info(
+    "👉 Open **🚀 Run Pipeline** in the sidebar to actually run the system on a business case "
+    "and watch each stage execute live with explanations.",
+    icon="ℹ️",
+)
