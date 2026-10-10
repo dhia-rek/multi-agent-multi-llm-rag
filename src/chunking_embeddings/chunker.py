@@ -62,8 +62,9 @@ def chunk_documents(
             else:
                 chunks.append(_make_chunk(counter, buffer, doc, page_num))
                 counter += 1
-                # carry tail as overlap
-                buffer = (buffer[-overlap:] + "\n" + para).strip()
+                # carry tail as overlap (buffer[-0:] would be the whole buffer)
+                tail = buffer[-overlap:] if overlap > 0 else ""
+                buffer = (tail + "\n" + para).strip()
         if buffer:
             chunks.append(_make_chunk(counter, buffer, doc, page_num))
             counter += 1
