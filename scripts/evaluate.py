@@ -1,17 +1,17 @@
 """Small evaluation harness over data/eval/cases.jsonl.
 
 Offline (always runs, no API key):
-    Retrieval quality per case, using the business case itself as the query
-    (the pipeline's fallback when the planner gives no queries):
-      - field_recall:  share of the case's expected Canvas action fields whose
-                       name appears in the context the agents receive (top-k
-                       passages capped at 6000 chars, as in the pipeline;
-                       lexical proxy)
+    Index-level:
+      - embedder_coverage: share of corpus tokens inside the embedding model's
+                           window (tokens past max_seq_length are silently dropped)
+      - field_query_p_at_3: for each of the 7 Canvas action fields, ask a
+                           field-specific question; share of the top-3 passages
+                           that actually discuss that field (lexical check)
+    Per case (query = business case text, the pipeline's fallback query):
       - sources:       distinct framework papers among the top-k (max 3)
       - example_share: share of top-k passages taken from the bikeshop example
                        roadmap rather than the framework papers
       - ms:            retrieval latency
-    Reported twice: whole corpus, and framework papers only (example excluded).
 
 Live (only with GOOGLE_API_KEY and --live):
     Full pipeline per case: JSON parse rate across the six agents, evaluator
@@ -34,9 +34,16 @@ from src.retrieval.retriever import RetrievedPassage, Retriever
 from src.utils.config import settings
 
 CASES_PATH = settings.project_root / "data" / "eval" / "cases.jsonl"
-FRAMEWORK_PAPERS = ["dt_framework"]
 EXAMPLE_SET = "bikeshop_roadmap"
-CONTEXT_CHARS = 6000
+CANVAS_FIELDS = [
+    "Customer Centricity",
+    "New Technologies",
+    "Cloud & Data",
+    "Digital Business Development",
+    "Process Engineering",
+    "Digital Leadership & Culture",
+    "Digital Marketing",
+]
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict]:
@@ -48,12 +55,8 @@ def _norm(text: str) -> str:
     return " ".join(text.lower().replace("&", "and").split())
 
 
-def retrieval_metrics(passages: list[RetrievedPassage], expected_fields: list[str]) -> dict:
-    # Judge only what the agents actually see: the pipeline caps context at 6000 chars.
-    blob = _norm(Retriever.format_context(passages)[:CONTEXT_CHARS])
-    hits = [f for f in expected_fields if _norm(f) in blob]
+def case_metrics(passages: list[RetrievedPassage]) -> dict:
     return {
-        "field_recall": len(hits) / len(expected_fields) if expected_fields else 0.0,
         "sources": len({p.chunk.title for p in passages if p.chunk.framework != EXAMPLE_SET}),
         "example_share": (
             sum(p.chunk.framework == EXAMPLE_SET for p in passages) / len(passages) if passages else 0.0
@@ -61,19 +64,41 @@ def retrieval_metrics(passages: list[RetrievedPassage], expected_fields: list[st
     }
 
 
+def embedder_coverage(retriever: Retriever) -> float:
+    model = retriever.embedder.model
+    window = model.max_seq_length - 2  # [CLS] and [SEP]
+    total = visible = 0
+    for chunk in retriever.store.chunks:
+        n = len(model.tokenizer(chunk.text, add_special_tokens=False)["input_ids"])
+        total += n
+        visible += min(n, window)
+    return visible / total if total else 0.0
+
+
+def field_query_precision(retriever: Retriever, k: int = 3) -> float:
+    hits = 0
+    for field in CANVAS_FIELDS:
+        passages = retriever.retrieve(f"How should an SME approach {field} in its digital transformation?", k=k)
+        hits += sum(_norm(field) in _norm(p.chunk.text) for p in passages)
+    return hits / (k * len(CANVAS_FIELDS))
+
+
 def run_offline(cases: list[dict], k: int) -> dict:
     retriever = Retriever()
     retriever.retrieve("warm-up")  # load the embedding model outside the timings
-    results: dict[str, list[dict]] = {"all": [], "papers_only": []}
+    rows = []
     for case in cases:
-        query = case["business_case"][:300]
-        for setting, filt in (("all", None), ("papers_only", FRAMEWORK_PAPERS)):
-            t = time.perf_counter()
-            passages = retriever.retrieve(query, k=k, framework_filter=filt)
-            ms = (time.perf_counter() - t) * 1000
-            row = {"id": case["id"], **retrieval_metrics(passages, case["expected_fields"]), "ms": ms}
-            results[setting].append(row)
-    return {"k": k, "n_chunks": len(retriever.store.chunks), **results}
+        t = time.perf_counter()
+        passages = retriever.retrieve(case["business_case"][:300], k=k)
+        ms = (time.perf_counter() - t) * 1000
+        rows.append({"id": case["id"], **case_metrics(passages), "ms": ms})
+    return {
+        "k": k,
+        "n_chunks": len(retriever.store.chunks),
+        "embedder_coverage": embedder_coverage(retriever),
+        "field_query_p_at_3": field_query_precision(retriever),
+        "cases": rows,
+    }
 
 
 def run_live(cases: list[dict]) -> list[dict]:
@@ -108,24 +133,21 @@ def _mean(rows: list[dict], key: str) -> float:
 
 
 def offline_table(res: dict) -> str:
+    rows = res["cases"]
     lines = [
-        f"Retrieval, top-{res['k']} over {res['n_chunks']} chunks, query = business case text",
+        f"Index: {res['n_chunks']} chunks · embedder coverage {res['embedder_coverage']:.0%} "
+        f"· field-query P@3 {res['field_query_p_at_3']:.2f}",
         "",
-        "| case | field recall | papers in top-k | example share | field recall (papers only) |",
-        "|---|---|---|---|---|",
+        f"Per-case retrieval, top-{res['k']}, query = business case text",
+        "",
+        "| case | framework papers in top-k (of 3) | share from example roadmap |",
+        "|---|---|---|",
     ]
-    for a, p in zip(res["all"], res["papers_only"], strict=True):
-        lines.append(
-            f"| {a['id']} | {a['field_recall']:.2f} | {a['sources']} | {a['example_share']:.2f} "
-            f"| {p['field_recall']:.2f} |"
-        )
-    a, p = res["all"], res["papers_only"]
-    lines.append(
-        f"| **mean** | **{_mean(a, 'field_recall'):.2f}** | **{_mean(a, 'sources'):.1f}** "
-        f"| **{_mean(a, 'example_share'):.2f}** | **{_mean(p, 'field_recall'):.2f}** |"
-    )
+    for r in rows:
+        lines.append(f"| {r['id']} | {r['sources']} | {r['example_share']:.2f} |")
+    lines.append(f"| **mean** | **{_mean(rows, 'sources'):.1f}** | **{_mean(rows, 'example_share'):.2f}** |")
     lines.append("")
-    lines.append(f"Median retrieval latency: {statistics.median(r['ms'] for r in a):.0f} ms (CPU)")
+    lines.append(f"Median retrieval latency: {statistics.median(r['ms'] for r in rows):.0f} ms (CPU)")
     return "\n".join(lines)
 
 
