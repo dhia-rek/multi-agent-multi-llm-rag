@@ -81,4 +81,3 @@ class FaissStore:
         if path.exists():
             return json.loads(path.read_text())
         return {}
-# RAG system - Apr 28

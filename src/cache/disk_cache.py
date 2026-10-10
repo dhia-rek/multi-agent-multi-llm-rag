@@ -39,4 +39,3 @@ class DiskCache:
     def clear(self) -> None:
         for f in self.dir.glob("*.pkl"):
             f.unlink()
-# Caching system - May 2
