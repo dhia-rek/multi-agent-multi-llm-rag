@@ -83,5 +83,5 @@ class BaseAgent:
             model=resp.model,
             tier=resp.tier,
             routing=decision,
+            extras={"usage": resp.usage} if resp.usage else {},
         )
-# Agents implementation - Apr 24

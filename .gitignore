@@ -11,3 +11,5 @@ Project*.pdf
 Project*.xlsx
 nohup.out
 /tmp/
+.pytest_cache/
+.ruff_cache/

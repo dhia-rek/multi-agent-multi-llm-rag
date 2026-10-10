@@ -22,6 +22,10 @@ class Settings:
     google_api_key: str | None = os.getenv("GOOGLE_API_KEY") or None
     gemini_fast_model: str = os.getenv("GEMINI_FAST_MODEL", "gemini-2.5-flash-lite")
     gemini_powerful_model: str = os.getenv("GEMINI_POWERFUL_MODEL", "gemini-2.5-flash")
+    # Gemini 2.5 thinking tokens count against max_output_tokens. Unbounded, they
+    # ate ~1960 of 2048 and truncated every powerful-tier JSON. The powerful tier
+    # gets this budget on top of the answer budget; the fast tier doesn't think.
+    gemini_thinking_budget: int = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
 
     ollama_model: str | None = os.getenv("OLLAMA_MODEL") or None
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
@@ -33,6 +37,19 @@ class Settings:
     chunk_size: int = int(os.getenv("CHUNK_SIZE", "900"))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     top_k: int = int(os.getenv("RAG_TOP_K", "6"))
+
+    # Offline demo: "auto" = replay the recorded fixture outputs when no Gemini key is set,
+    # "on" = always, "off" = never (falls back to the placeholder MockLLMClient).
+    demo_mode: str = os.getenv("DEMO_MODE", "auto").strip().lower()
+    demo_fixture: Path = PROJECT_ROOT / "data" / "demo" / "alexandra_bikeshop.fixture.json"
+
+    @property
+    def demo_active(self) -> bool:
+        if self.demo_mode in {"on", "1", "true"}:
+            return True
+        if self.demo_mode in {"off", "0", "false"}:
+            return False
+        return not self.google_api_key
 
 
 settings = Settings()

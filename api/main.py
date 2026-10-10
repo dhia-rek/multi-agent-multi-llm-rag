@@ -67,6 +67,7 @@ class BusinessCaseIn(BaseModel):
 class HealthOut(BaseModel):
     status: str
     gemini_configured: bool
+    demo_mode: bool
     fast_model: str
     powerful_model: str
     local_model: str | None
@@ -91,6 +92,7 @@ def health() -> HealthOut:
     return HealthOut(
         status="ok",
         gemini_configured=bool(settings.google_api_key),
+        demo_mode=settings.demo_active,
         fast_model=settings.gemini_fast_model,
         powerful_model=settings.gemini_powerful_model,
         local_model=settings.ollama_model,
@@ -126,7 +128,10 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
         )
 
     orch = get_orchestrator()
-    trace = orch.run(payload.business_case, run_evaluator=False)
+    trace = None
+    for stage, trace in orch.run_streaming(payload.business_case, run_evaluator=False):  # noqa: B007
+        if stage in {"canvas", "cached"}:
+            break
 
     return {
         "plan": trace.plan.output if trace.plan else None,
@@ -143,6 +148,7 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
         "canvas": trace.canvas.output if trace.canvas else None,
         "models_used": trace.model_per_stage,
         "timings_seconds": trace.timings,
+        "demo_mode": orch.router.demo,
     }
 
 
@@ -162,5 +168,4 @@ def generate_roadmap(payload: BusinessCaseIn) -> dict[str, Any]:
         log.exception("Pipeline failed")
         raise HTTPException(status_code=500, detail=f"Pipeline error: {e}") from e
 
-    return trace.as_dict()
-# REST API - May 6
+    return {**trace.as_dict(), "demo_mode": orch.router.demo}

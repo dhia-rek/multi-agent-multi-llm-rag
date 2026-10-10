@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+
+  smoke:
+    name: Index build, eval and API smoke test (demo mode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('src/utils/config.py') }}
+      - run: uv sync --frozen --no-dev
+      - run: uv run python -m scripts.build_index
+      - run: uv run python -m scripts.evaluate
+      - name: API health and demo roadmap
+        run: |
+          # Run from .venv directly: a background `uv run` keeps the uv cache locked
+          # and makes setup-uv's post-job cache prune time out.
+          .venv/bin/uvicorn api.main:app --port 8000 &
+          SERVER=$!
+          trap 'kill $SERVER' EXIT
+          for i in $(seq 60); do curl -sf localhost:8000/health && break; sleep 1; done
+          curl -sf localhost:8000/health | grep -q '"demo_mode":true'
+          curl -sf -X POST localhost:8000/generate-roadmap \
+            -H 'Content-Type: application/json' \
+            -d '{"business_case": "Our family bakery wants online ordering and a loyalty app."}' \
+            | grep -q '"phases"'

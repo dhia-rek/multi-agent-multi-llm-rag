@@ -1,290 +1,302 @@
-# Digital Transformation Roadmap Generator
+# 🧭 Digital Transformation Roadmap Generator
 
-**A Multi-Agent RAG System for analyzing business cases and generating structured digital transformation roadmaps**
+**Six LLM agents and a local RAG pipeline turn a free-text business case into a structured, framework-grounded digital transformation roadmap. Each task is routed to the cheapest model that can handle it.**
 
----
+[![CI](https://github.com/dhia-rek/multi-agent-multi-llm-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/dhia-rek/multi-agent-multi-llm-rag/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Gemini](https://img.shields.io/badge/LLM-Gemini%202.5-4285F4)
+![FAISS](https://img.shields.io/badge/vector%20store-FAISS-green)
+![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
 
-## Overview
+![Demo: the six agents running on the sample bikeshop case](docs/img/demo.gif)
 
-This project takes a free-text business case and transforms it into a structured, framework-grounded digital transformation roadmap using multiple AI agents and local RAG (Retrieval-Augmented Generation).
+<sub>Recorded in **demo mode**: retrieval is live, and the agent outputs are replayed from a recorded Gemini run (see [Demo mode](#-demo-mode-no-api-key)).</sub>
 
-### What It Does
-
-1. **Accepts** your business case (free text description)
-2. **Searches** a knowledge base of digital transformation frameworks
-3. **Analyzes** using 6 specialized AI agents
-4. **Routes** each task to the best LLM model (fast vs powerful)
-5. **Generates** a structured, actionable roadmap
-
----
-
-## Project Team
-
-**Developed by:** Dhia & Roy  
-**Course:** ECE MSc AI (M2) — Multi-LLM Architectures & Eco-Responsible AI (2025-26)
+> **Live demo:** not deployed yet. The repo is ready for Hugging Face Spaces; see [Deploy](#%EF%B8%8F-deploy).
 
 ---
 
-## Quick Start
+## What it does
 
-### 1. Setup
-```bash
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+You describe a company in plain text, e.g. *"a Swiss bike shop with 8 staff, a basic Shopify site, phone-only repair booking and a CHF 60k budget"*. The system:
 
-# Install dependencies
-pip install -r requirements.txt
+1. **Plans**: extracts stakes, objectives and constraints, and writes retrieval queries.
+2. **Retrieves**: searches a local FAISS index of three digital-transformation frameworks (Wade 2015, Peter's Digital Transformation Canvas, Elia et al. 2024).
+3. **Reasons in stages**: four specialist agents classify the evidence, score maturity on the 7 Canvas action fields, build a strategy and produce a time-phased roadmap.
+4. **Critiques**: an optional evaluator agent scores the roadmap against the frameworks.
+5. **Routes**: each agent declares its task type, complexity and criticality, and a router sends it to a fast, powerful or local model.
+
+The output is strict JSON (phases, initiatives, owners, KPIs, milestones, budget and framework anchors) plus a full trace showing which model ran each stage, why, and on which passages.
+
+## Engineering highlights
+
+- **Multi-agent orchestration**: six single-purpose agents with typed JSON contracts and a streaming orchestrator, so the UI renders each stage as it finishes.
+- **Cost-aware multi-LLM routing**: an explicit policy (`src/routing/router.py`) maps each agent's task type, complexity and criticality to Gemini Flash-Lite, Gemini Flash or Ollama. Per-minute rate limits are retried with the server's suggested delay. If a tier hits its daily quota, it's swapped out so the run still completes.
+- **Local RAG**: pypdf → paragraph-aware chunking → MiniLM embeddings on CPU → FAISS cosine index. No API cost for retrieval.
+- **Measured, then fixed**: the evaluation harness showed that only 36% of corpus tokens were ever embedded, because whole PDF pages became single chunks. The [chunking fix](#-evaluation) raised that to 99% and more than doubled field-query precision.
+- **Works without a key**: demo mode replays a recorded Gemini run's agent outputs over live retrieval, so the app, API, CI and a public demo all run offline.
+- **Production basics**: offline pytest suite, ruff, GitHub Actions, `uv.lock`, Dockerfile and Hugging Face Spaces config.
+- **Optimisations**: persistent index, SHA-keyed pipeline cache, one shared prompt header, context capped at 6k chars per agent, and an optional evaluator.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    A[📥 Business case<br/>free text] --> B[🧭 Planner]
+    B -->|queries| C[(📚 FAISS index<br/>MiniLM embeddings)]
+    C -->|top-k passages| D[📚 Framework]
+    D --> E[🧮 Canvas analysis]
+    E --> F[♟️ Strategist]
+    F --> G[🗺️ Roadmap]
+    G --> H[🔍 Evaluator<br/>optional]
+    H --> I[📤 JSON roadmap<br/>+ trace]
+
+    R{{🧠 Router}} -.fast tier.-> B & D
+    R -.powerful tier.-> E & F & G & H
+
+    classDef io fill:#fff3cd,stroke:#856404
+    classDef rag fill:#d1e7dd,stroke:#0f5132
+    classDef opt fill:#f8d7da,stroke:#842029
+    class A,I io
+    class C rag
+    class H opt
 ```
 
-### 2. Configure API Key
-```bash
-cp .env.example .env
-# Edit .env and add your Gemini API key (free at https://aistudio.google.com/app/apikey)
+| Agent | Framework anchor | Job | Tier |
+|---|---|---|---|
+| 🧭 Planner | Wade 2015 | Extract stakes and objectives, write retrieval queries | fast |
+| 📚 Framework | all three | Classify passages by Why/What/How and the 7 action fields | fast |
+| 🧮 Canvas analysis | Peter (Canvas) | Score maturity 1–5 per action field, list gaps | powerful |
+| ♟️ Strategist | Elia et al. 2024 | Purpose, operational pillars, value, risks, quick wins | powerful |
+| 🗺️ Roadmap | Peter (roadmap) | Phases, initiatives, owners, KPIs, milestones, budget | powerful |
+| 🔍 Evaluator | all three | Critique, coverage check, score 1–10 | powerful |
+
+<details>
+<summary><b>Routing policy</b></summary>
+
+```mermaid
+flowchart LR
+    A[Agent declares<br/>task_type · complexity · criticality] --> R{Router}
+    R -->|reasoning / generation / evaluation<br/>or complexity=high or criticality=high| P[🧠 Powerful<br/>gemini-2.5-flash]
+    R -->|criticality=low and Ollama configured| L[🏠 Local<br/>Ollama]
+    R -->|otherwise| F[⚡ Fast<br/>gemini-2.5-flash-lite]
+    P -.daily quota hit.-> M[🎭 Mock fallback]
+    F -.daily quota hit.-> M
 ```
 
-### 3. Build Vector Index
+Each agent sets three class attributes (`src/agents/*.py`); `Router.decide()` turns them into a tier and a human-readable reason that the UI shows.
+
+</details>
+
+<details>
+<summary><b>RAG pipeline</b></summary>
+
+```mermaid
+flowchart LR
+    PDF[corpus/*.pdf] --> L[pypdf loader]
+    L --> CH[Chunker<br/>≤900 chars, 150 overlap]
+    CH --> EMB[MiniLM-L6-v2<br/>local CPU]
+    EMB --> IDX[(FAISS<br/>inner product on<br/>normalised vectors)]
+    Q[Agent query] --> EMBQ[MiniLM] --> S[top-k search] --> CTX[Passages with<br/>framework · title · page · score]
+    IDX --> S
+```
+
+</details>
+
+---
+
+## 📊 Evaluation
+
+`python -m scripts.evaluate` runs offline over 5 SME business cases (`data/eval/cases.jsonl`).
+
+**Chunking fix, before and after** (same corpus, same embedder):
+
+| Metric | Before | After |
+|---|---|---|
+| Chunks | 52 | 205 |
+| Corpus tokens inside the embedder's 256-token window | 36% | **99%** |
+| Field-query precision@3 (7 Canvas fields; share of top-3 passages that discuss the field) | 0.19 | **0.48** |
+| Median retrieval latency (CPU) | 17 ms | 20 ms |
+
+pypdf output rarely contains blank lines, so the chunker treated each page as one paragraph. Chunks reached several thousand characters, and MiniLM silently truncated them, so most of each page was invisible to retrieval.
+
+**Per-case retrieval** (top-6, query = business case text):
+
+| Case | Framework papers in top-6 (of 3) | Share of passages from the example roadmap |
+|---|---|---|
+| alexandra_bikeshop | 0 | 1.00 |
+| family_bakery | 2 | 0.50 |
+| regional_logistics | 2 | 0.33 |
+| dental_clinic_group | 2 | 0.50 |
+| industrial_parts_distributor | 1 | 0.83 |
+
+The worked bikeshop roadmap (`corpus/bikeshop_roadmap/`) is indexed alongside the framework papers and dominates retrieval, especially for the bikeshop case itself. See [Limitations](#%EF%B8%8F-limitations).
+
+**Live pipeline metrics** (`python -m scripts.evaluate --live`, needs `GOOGLE_API_KEY`). Run on 2026-10-10 with `gemini-2.5-flash-lite` (fast tier) and `gemini-2.5-flash` (powerful tier), free tier:
+
+| Case | Agents with valid JSON | Canvas priority fields in expected set | Evaluator score (1–10) | Latency (s) |
+|---|---|---|---|---|
+| alexandra_bikeshop | 6/6 | 0.67 | 6 | 47.5 |
+| family_bakery | 6/6 | 0.67 | 6 | 45.6 |
+| regional_logistics | 6/6 | 0.67 | 6 | 42.7 |
+| dental_clinic_group | not run: daily quota | | | |
+| industrial_parts_distributor | not run: daily quota | | | |
+| **3 cases** | **18/18** | **0.67** | **6.0** | **45.3 mean** |
+
+The free-tier daily cap on `gemini-2.5-flash` ran out during the fourth case, after 16 successful requests that day. The router fell back to the mock as designed, so those two rows measure nothing and are left out. Latency is the sum of stage timings; in the recorded bikeshop run the four powerful-tier stages (canvas, strategist, roadmap, evaluator) took 87% of it.
+
+Before the thinking-budget fix, this table would have read 2/6: `gemini-2.5-flash` thinks by default, and thinking tokens count against `max_output_tokens`. With the old 2048 limit it spent ~1960 tokens thinking and cut every powerful-tier answer off after ~80 tokens. The powerful tier now gets `GEMINI_THINKING_BUDGET` (1024) on top of a 4096-token answer budget, and the fast tier runs with thinking off.
+
+---
+
+## 🚀 Quick start
+
+Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-# Process PDFs and create FAISS index (one-time setup)
+git clone https://github.com/dhia-rek/multi-agent-multi-llm-rag && cd multi-agent-multi-llm-rag
+uv sync                                   # installs pinned deps (CPU-only torch on Linux)
+uv run python -m scripts.build_index      # one-off: PDFs → FAISS index (~30 s on CPU)
+uv run streamlit run app/streamlit_app.py # → http://localhost:8501
+```
+
+That's enough to use the app: with no key it starts in **demo mode**. For live models, get a free Gemini key at <https://aistudio.google.com/app/apikey>, then:
+
+```bash
+cp .env.example .env    # set GOOGLE_API_KEY=...
+```
+
+<details>
+<summary>Using pip instead of uv</summary>
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt   # pinned export of uv.lock
 python -m scripts.build_index
-```
-
-### 4. Run the Application
-```bash
-# Start Streamlit UI
 streamlit run app/streamlit_app.py
-# Opens at http://localhost:8502
 ```
 
-### 5. (Optional) Run REST API
-```bash
-# Start FastAPI service in another terminal
-uvicorn api.main:app --reload --port 8000
-# Swagger docs at http://localhost:8000/docs
-```
-
----
-
-## Architecture
-
-### System Flow
-
-```
-User Input
-    ↓
-Planner Agent (Extract intent)
-    ↓
-RAG Retrieval (Search knowledge base)
-    ↓
-Framework Agent (Classify passages)
-    ↓
-Canvas Agent (Analyze by framework)
-    ↓
-Strategist Agent (Develop strategy)
-    ↓
-Roadmap Agent (Generate roadmap)
-    ↓
-Evaluator Agent (Critique result - optional)
-    ↓
-Structured Roadmap Output
-```
-
-### Key Components
-
-- **RAG Pipeline:** Local FAISS vector store with semantic search
-- **Agents:** 6 specialized agents, each with a single responsibility
-- **Routing:** Multi-LLM system (fast/powerful/local models)
-- **Caching:** SHA-keyed disk cache for optimization
-- **UI:** Clean Streamlit interface for end-users
-- **API:** FastAPI endpoints for programmatic access
-
----
-
-## Project Structure
-
-```
-├── app/
-│   └── streamlit_app.py      # Main user interface
-├── api/
-│   └── main.py               # FastAPI REST endpoints
-├── src/
-│   ├── agents/               # 6 AI agents + prompts
-│   ├── orchestrator/         # Pipeline orchestration
-│   ├── routing/              # LLM model selection
-│   ├── llm_clients/          # Gemini, Ollama, Mock
-│   ├── retrieval/            # RAG implementation
-│   ├── vector_store/         # FAISS index
-│   ├── cache/                # Result caching
-│   ├── chunking_embeddings/  # Text processing
-│   ├── data_ingestion/       # PDF loading
-│   └── utils/                # Config & logging
-├── scripts/
-│   └── build_index.py        # Offline indexing
-├── corpus/                   # Reference frameworks (PDFs)
-└── vector_store/             # Generated FAISS index
-```
-
----
-
-## Features
-
-### 6 Specialized Agents
-
-1. **Planner** - Extracts key information from business case
-2. **Framework** - Maps content to transformation frameworks
-3. **Canvas** - Analyzes using 7-field transformation canvas
-4. **Strategist** - Develops strategic trajectory
-5. **Roadmap** - Generates structured roadmap with phases
-6. **Evaluator** - Critiques and validates output (optional)
-
-### Multi-LLM Routing
-
-- **Fast Model** (Gemini Flash-Lite): Extraction, synthesis
-- **Powerful Model** (Gemini Flash): Complex reasoning, strategy
-- **Local Model** (Ollama): Optional local execution
-- **Mock Client** (Deterministic): Testing & fallback
-
-### Optimizations
-
-✓ Persistent FAISS index (load once, reuse)  
-✓ Disk cache (same case = instant results)  
-✓ Prompt templates (mutualized headers)  
-✓ Context capping (6000 chars max)  
-✓ Conditional execution (optional evaluator)  
-✓ Quota-aware fallback (handles rate limits)  
-
----
-
-## Usage Examples
-
-### Streamlit UI
-
-1. Enter your business case in the text area
-2. Click "Generate Roadmap"
-3. View phases, initiatives, and execution details
-4. Download results as JSON
+</details>
 
 ### REST API
 
 ```bash
-# Generate full roadmap
-curl -X POST http://localhost:8000/generate-roadmap \
-  -H "Content-Type: application/json" \
-  -d '{"business_case": "Our bakery wants to go digital..."}'
-
-# Check system status
-curl http://localhost:8000/health
-
-# View pipeline configuration
-curl http://localhost:8000/pipeline-info
+uv run uvicorn api.main:app --port 8000   # Swagger UI at http://localhost:8000/docs
 ```
 
----
-
-## Configuration
-
-Create a `.env` file with your settings:
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness, configured models, index ready, `demo_mode` |
+| GET | `/pipeline-info` | Models per tier, embedding model, chunking, top-k |
+| POST | `/analyze` | Planner → RAG → Framework → Canvas only |
+| POST | `/generate-roadmap` | Full pipeline: roadmap, optional evaluation, trace |
 
 ```bash
-# LLM Configuration
-GOOGLE_API_KEY=your_gemini_api_key_here
-GEMINI_FAST_MODEL=gemini-2.5-flash-lite
-GEMINI_POWERFUL_MODEL=gemini-2.5-flash
-
-# Optional: Local model
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=mistral
-
-# Embedding model
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+curl -s -X POST localhost:8000/generate-roadmap -H 'Content-Type: application/json' \
+  -d '{"business_case": "Family bakery, 12 staff, wants online pre-orders and a loyalty app.", "run_evaluator": false}'
 ```
 
+### 🎭 Demo mode (no API key)
+
+| `DEMO_MODE` | Behaviour |
+|---|---|
+| `auto` (default) | Demo mode when `GOOGLE_API_KEY` is empty |
+| `on` | Always demo mode, even with a key |
+| `off` | Never: without a key, agents return placeholder mock text |
+
+In demo mode, retrieval runs for real, while the six agents replay [`data/demo/alexandra_bikeshop.fixture.json`](data/demo/alexandra_bikeshop.fixture.json). **That fixture was recorded from a live Gemini run on 2026-10-10** (`gemini-2.5-flash-lite` for planner and framework, `gemini-2.5-flash` for the other four agents). Outputs are verbatim, with per-stage timings and token usage in its `recorded` block. Regenerate it with `python -m scripts.record_demo` (6 Gemini calls). Any other business case will still show bikeshop outputs, and the UI says so. Demo traces are cached separately from live ones.
+
+### Configuration
+
+| Variable | Default | |
+|---|---|---|
+| `GOOGLE_API_KEY` | – | Enables Gemini |
+| `GEMINI_FAST_MODEL` | `gemini-2.5-flash-lite` | Fast tier |
+| `GEMINI_POWERFUL_MODEL` | `gemini-2.5-flash` | Powerful tier |
+| `GEMINI_THINKING_BUDGET` | `1024` | Thinking-token cap for the powerful tier, added on top of the answer budget |
+| `OLLAMA_MODEL` / `OLLAMA_HOST` | – / `http://localhost:11434` | Optional local tier |
+| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Local embedder |
+| `CHUNK_SIZE` / `CHUNK_OVERLAP` / `RAG_TOP_K` | `900` / `150` / `6` | Retrieval |
+| `DEMO_MODE` | `auto` | See above |
+
 ---
 
-## Requirements
+## 🖼️ Screenshots
 
-- Python 3.9+
-- Google Gemini API key (free tier available)
-- FAISS (CPU) for vector search
-- Streamlit for UI
-- FastAPI for REST endpoints
+| Home: architecture overview | RAG inspector |
+|---|---|
+| ![Home page](docs/img/home.png) | ![RAG inspector](docs/img/rag_inspector.png) |
+| **Live pipeline run** | **Generated roadmap** |
+| ![Run pipeline](docs/img/run_pipeline.png) | ![Roadmap](docs/img/roadmap.png) |
 
-See `requirements.txt` for full list.
+The dashboard also has a **Multi-LLM Routing** page with a live policy tester, a **Frameworks** reference and a **How It Works** glossary.
 
 ---
 
-## Testing
+## 🧪 Tests and CI
 
-### Verify Installation
 ```bash
-# Check all dependencies
-pip list | grep -E "streamlit|faiss|google|fastapi"
-
-# Test imports
-python -c "from src.orchestrator.pipeline import Orchestrator; print('✓ Imports OK')"
+uv run pytest -q        # offline: fake embedder, demo client, no network or keys
+uv run ruff check .
 ```
 
-### Run Sample Analysis
+GitHub Actions runs two jobs on every push and PR: **lint + unit tests**, and a **smoke test** that builds the real index, runs the evaluation and calls the API in demo mode.
+
+## ☁️ Deploy
+
+`Dockerfile` + `deploy/start.sh` produce a CPU image that builds the index on first boot and serves Streamlit on port 7860. That's the layout Hugging Face Spaces (Docker SDK) expects. Step-by-step instructions and the secrets table are in [`deploy/huggingface/DEPLOY.md`](deploy/huggingface/DEPLOY.md).
+
 ```bash
-streamlit run app/streamlit_app.py
-# Try with: "We are a small coffee shop wanting to launch online ordering"
+docker build -t dt-roadmap . && docker run -p 7860:7860 -e GOOGLE_API_KEY=... dt-roadmap
 ```
 
 ---
 
-## Performance Notes
+## 📁 Project layout
 
-- **First run:** ~30-60 seconds (index loading, model initialization)
-- **Subsequent runs:** 5-10 seconds (cached results)
-- **With real API:** 15-30 seconds (agent execution time)
-- **MOCK mode:** <5 seconds (deterministic output)
-
----
-
-## Troubleshooting
-
-### Index not found
-```bash
-python -m scripts.build_index
+```
+app/                    Streamlit dashboard: home + 5 pages, teaching copy in edu_content.py
+api/main.py             FastAPI service
+src/
+  agents/               6 agents, shared base (routing call, lenient JSON parsing), prompts.py
+  orchestrator/         7-stage pipeline: run() and run_streaming(), disk-cached
+  routing/router.py     tier policy + quota failover
+  llm_clients/          gemini (google-genai) · ollama · demo (fixture) · mock
+  data_ingestion/       pypdf loader
+  chunking_embeddings/  chunker + sentence-transformers embedder
+  vector_store/         FAISS build / save / load / search
+  retrieval/            top-k retriever with framework filter
+  cache/                SHA-keyed disk cache
+scripts/                build_index.py · evaluate.py · record_demo.py
+data/                   sample case · demo fixture · eval cases
+corpus/                 reference PDFs (third-party, see corpus/README.md)
+tests/                  pytest suite
+deploy/                 container entrypoint + Hugging Face Space card
 ```
 
-### API key errors
-- Check `.env` file has valid `GOOGLE_API_KEY`
-- Regenerate key at https://aistudio.google.com/app/apikey
+## 🧰 Stack
 
-### Out of memory
-- Reduce `top_k` in config (fewer retrieved passages)
-- Use smaller chunk size in `build_index.py`
+Python · Google Gemini 2.5 (`google-genai`) · Ollama (optional) · sentence-transformers (MiniLM-L6-v2) · FAISS · pypdf · Streamlit · FastAPI · pydantic · tenacity · uv · pytest · ruff · GitHub Actions · Docker
 
-### Port already in use
-```bash
-# Use different ports
-streamlit run app/streamlit_app.py --server.port=8503
-uvicorn api.main:app --port 8001
-```
+## ⚠️ Limitations
+
+- **Example roadmap in the index.** The worked bikeshop roadmap is indexed with the framework papers and supplies 63% of retrieved passages on average (100% for the bikeshop case). That's useful as an exemplar, but it also means the sample case partly retrieves its own answer.
+- **Small live evaluation.** Live metrics cover 3 of the 5 cases (free-tier daily quota), from one run each, so there's no variance estimate. The evaluator is the same model family it grades.
+- **Lexical evaluation.** Field-query precision checks whether a passage names the field. It's a cheap proxy, not human relevance judgement.
+- **English PDFs only, small corpus** (4 documents, 205 chunks).
 
 ---
 
-## Project Status
+## 👥 Team and project context
 
-✅ Complete implementation of all 11 functional requirements  
-✅ All 6 agents working end-to-end  
-✅ Multi-LLM routing functional  
-✅ Streamlit UI deployed  
-✅ REST API available  
-✅ Optimization measures implemented  
+Built by **Dhia** ([@dhia-rek](https://github.com/dhia-rek)) and **Roy** ([@royhayek](https://github.com/royhayek)) as their M2 project for *Multi-LLM Architectures & Eco-Responsible AI* (ECE Paris, MSc AI, 2025–26). The brief: an AI system that turns a business case into a digital transformation roadmap, with RAG over provided frameworks, specialised agents, multi-LLM routing, cost optimisations, a dashboard and a REST API.
 
----
+Dhia and Roy designed and built the system together during the course. After the course, a showcase pass (October 2026) added the offline demo mode, evaluation harness, chunking fix, Gemini SDK migration, tests, CI, packaging and deployment setup.
 
-## License
+## 📄 License
 
-Academic Project - ECE MSc AI (2025-26)
-
----
-
-## Credits
-
-**Project Team:** Dhia & Roy  
-**Supervised by:** ECE Paris - Multi-LLM Architectures Course
-
-For questions or issues, refer to the documentation or contact the development team.
+Code: [MIT](LICENSE). The PDFs in `corpus/` are third-party publications included for academic use; their copyright stays with their authors (see [`corpus/README.md`](corpus/README.md)).

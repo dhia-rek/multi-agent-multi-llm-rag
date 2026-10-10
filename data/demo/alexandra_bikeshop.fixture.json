@@ -1,0 +1,654 @@
+{
+  "_note": "Recorded from a live Gemini run on 2026-10-10, models gemini-2.5-flash, gemini-2.5-flash-lite. Outputs are verbatim; scripts/record_demo.py regenerates it.",
+  "case": "alexandra_bikeshop",
+  "recorded": {
+    "date": "2026-10-10",
+    "model_per_stage": {
+      "planner": "gemini-2.5-flash-lite",
+      "framework": "gemini-2.5-flash-lite",
+      "canvas": "gemini-2.5-flash",
+      "strategist": "gemini-2.5-flash",
+      "roadmap": "gemini-2.5-flash",
+      "evaluator": "gemini-2.5-flash"
+    },
+    "timings": {
+      "planner": 1.98,
+      "retrieval": 1.91,
+      "framework": 2.1,
+      "canvas": 9.4,
+      "strategist": 7.14,
+      "roadmap": 15.1,
+      "evaluator": 9.98
+    },
+    "usage": {
+      "planner": {
+        "prompt_tokens": 523,
+        "output_tokens": 460,
+        "thinking_tokens": null,
+        "finish_reason": "STOP"
+      },
+      "framework": {
+        "prompt_tokens": 1957,
+        "output_tokens": 589,
+        "thinking_tokens": null,
+        "finish_reason": "STOP"
+      },
+      "canvas": {
+        "prompt_tokens": 2095,
+        "output_tokens": 1205,
+        "thinking_tokens": 823,
+        "finish_reason": "STOP"
+      },
+      "strategist": {
+        "prompt_tokens": 2032,
+        "output_tokens": 773,
+        "thinking_tokens": 804,
+        "finish_reason": "STOP"
+      },
+      "roadmap": {
+        "prompt_tokens": 1742,
+        "output_tokens": 2403,
+        "thinking_tokens": 756,
+        "finish_reason": "STOP"
+      },
+      "evaluator": {
+        "prompt_tokens": 2283,
+        "output_tokens": 1280,
+        "thinking_tokens": 776,
+        "finish_reason": "STOP"
+      }
+    }
+  },
+  "planner": {
+    "company_summary": "Alexandra's Bikeshop is a Swiss SME with two physical stores, a basic e-commerce site, and a limited social media presence. The company faces stagnating revenue and unmet customer expectations regarding online services and efficient repair processes.",
+    "why_transform": [
+      "Improve customer experience across all touchpoints.",
+      "Increase sales by targeting new customer segments.",
+      "Reduce operational costs within the repair workflow.",
+      "Establish a digital marketing presence.",
+      "Prepare the business for a digital-native successor."
+    ],
+    "stakes": [
+      "Continued revenue stagnation or decline.",
+      "Loss of market share to competitors offering better digital services.",
+      "Decreased customer satisfaction and loyalty.",
+      "Inability to attract younger, digitally-savvy customer segments.",
+      "Difficulty in transitioning leadership to a digital-native successor."
+    ],
+    "objectives": [
+      "Implement online configurators, home delivery, and trade-in options.",
+      "Streamline repair scheduling and reduce lead times.",
+      "Develop and execute a digital marketing strategy.",
+      "Enhance the integration of online and in-store customer experiences.",
+      "Improve data management and accessibility."
+    ],
+    "constraints": [
+      "Limited IT budget (under CHF 60k for year 1).",
+      "Small team (8 employees) with no deep digital skills.",
+      "No in-house development capabilities.",
+      "Scattered data across POS, Excel, and paper records."
+    ],
+    "transformation_drivers": [
+      "customer_pressure",
+      "competition",
+      "performance",
+      "innovation"
+    ],
+    "retrieval_queries": [
+      "Digital Transformation Canvas - Customer Experience",
+      "Digital Transformation Canvas - Value Proposition",
+      "Digital Transformation Canvas - Operational Model",
+      "Digital Transformation Canvas - Digital Marketing",
+      "Wade Why/What/How - Digital Transformation Strategy",
+      "Elia et al. Strategic/Operational Canvas - Digitalization"
+    ]
+  },
+  "framework": {
+    "why_principles": [
+      "Purpose should be aligned with and descend from organizational and business strategy.",
+      "Purpose may arise from various sources, such as a problem that needs to be solved, a need requiring fulfillment, an opportunity worth pursuing, or customer requests and insights.",
+      "Purpose can come either from within the organization, such as the company’s strategic plan, or be driven by external factors, such as customer/user expectations or competitor actions.",
+      "The need for change is a basic requirement of digital transformation.",
+      "Performance orientation is a basic requirement of digital transformation.",
+      "Process transformation is a basic requirement of digital transformation.",
+      "Multilevel impact (business, society, environment) is a basic requirement of digital transformation.",
+      "The key role of leadership is required for the implementation of digital transformation."
+    ],
+    "what_to_transform": {
+      "customer_centricity": [
+        "Address unmet customer expectations regarding online services.",
+        "Increase customer engagement."
+      ],
+      "new_technologies": [
+        "Familiarize with diverse digital technologies to understand how they can generate new business opportunities."
+      ],
+      "cloud_and_data": [],
+      "digital_business_development": [
+        "Develop and implement a digital strategy."
+      ],
+      "process_engineering": [
+        "Address unmet customer expectations regarding efficient repair processes.",
+        "Process transformation is a basic requirement of digital transformation."
+      ],
+      "digital_leadership_culture": [
+        "The key role of leadership is required for the implementation of digital transformation.",
+        "Digital leadership is a powerful means of communication for digital strategy."
+      ],
+      "digital_marketing": [
+        "Improve limited social media presence."
+      ]
+    },
+    "how_to_transform": [
+      "Systemic design of digital transformation initiatives.",
+      "Focus on the key dimensions of technology, processes, people, and value orientation.",
+      "Elaborate and share a transformative vision for anticipating market requests and trends and solving complex problems in turbulent contexts.",
+      "Introduce changes within any element and reflect on the consequences."
+    ],
+    "operational_pillars": {
+      "process": [
+        "Process includes operational pillars of digital transformation."
+      ],
+      "people": [],
+      "platform": [],
+      "partners": []
+    },
+    "value_and_pitfalls": {
+      "expected_value": [
+        "Anticipate market requests and trends.",
+        "Solve complex problems in turbulent contexts.",
+        "Generate new business opportunities."
+      ],
+      "pitfalls": []
+    }
+  },
+  "canvas": {
+    "fields": [
+      {
+        "name": "Customer Centricity",
+        "current_state": "Alexandra's Bikeshop faces stagnating revenue and unmet customer expectations regarding online services and efficient repair processes, despite having a basic e-commerce site.",
+        "maturity_score": 2,
+        "gaps": [
+          "Lack of online configurators, home delivery, and trade-in options.",
+          "Inefficient repair scheduling and long lead times.",
+          "Limited integration between online and in-store customer experiences."
+        ],
+        "opportunities": [
+          "Implement online configurators, home delivery, and trade-in options.",
+          "Streamline repair scheduling and reduce lead times.",
+          "Enhance the integration of online and in-store customer experiences."
+        ]
+      },
+      {
+        "name": "New Technologies",
+        "current_state": "The company has a basic e-commerce site but lacks deep digital skills and in-house development capabilities, indicating minimal adoption or exploration of new technologies.",
+        "maturity_score": 1,
+        "gaps": [
+          "Limited familiarity with diverse digital technologies that could generate new business opportunities.",
+          "Absence of in-house expertise to evaluate or implement new technological solutions.",
+          "No in-house development capabilities to customize or build digital tools."
+        ],
+        "opportunities": [
+          "Explore and adopt technologies for online configurators, repair management, and enhanced customer experience.",
+          "Leverage external partners for technology implementation given no in-house development capabilities."
+        ]
+      },
+      {
+        "name": "Cloud & Data",
+        "current_state": "Data is scattered across POS, Excel, and paper records, indicating a highly fragmented and unmanaged data landscape with no mention of cloud adoption.",
+        "maturity_score": 1,
+        "gaps": [
+          "Dispersed and unintegrated data across various systems.",
+          "Lack of a centralized data management system.",
+          "Poor data accessibility and no clear strategy for data utilization."
+        ],
+        "opportunities": [
+          "Improve data management and accessibility through centralization.",
+          "Implement a unified data platform, potentially cloud-based, to integrate POS, e-commerce, and other records."
+        ]
+      },
+      {
+        "name": "Digital Business Development",
+        "current_state": "Stagnating revenue and a basic e-commerce site suggest a lack of strategic digital business development, with limited online service offerings.",
+        "maturity_score": 2,
+        "gaps": [
+          "Absence of a comprehensive digital strategy to drive growth.",
+          "Limited online service offerings beyond basic e-commerce.",
+          "Lack of initiatives to generate new business opportunities through digital channels."
+        ],
+        "opportunities": [
+          "Develop and execute a comprehensive digital marketing strategy.",
+          "Implement new online services like configurators, home delivery, and trade-in options.",
+          "Explore new digital business models to address market requests and trends."
+        ]
+      },
+      {
+        "name": "Process Engineering",
+        "current_state": "Customer expectations regarding efficient repair processes are unmet, and lead times are long, indicating inefficient operational processes.",
+        "maturity_score": 2,
+        "gaps": [
+          "Inefficient repair scheduling and management processes.",
+          "Lack of digital tools to streamline internal operations and customer-facing processes.",
+          "Manual processes contributing to long lead times and customer dissatisfaction."
+        ],
+        "opportunities": [
+          "Streamline repair scheduling and reduce lead times through process automation.",
+          "Introduce digital tools for inventory management and service workflows.",
+          "Improve overall operational efficiency through process transformation."
+        ]
+      },
+      {
+        "name": "Digital Leadership & Culture",
+        "current_state": "The small team lacks deep digital skills, and there is no explicit mention of leadership's role in driving digital transformation beyond general objectives.",
+        "maturity_score": 2,
+        "gaps": [
+          "Limited digital skills within the existing team.",
+          "Absence of a clear transformative vision articulated by leadership.",
+          "Potential lack of a culture that embraces digital change and continuous learning."
+        ],
+        "opportunities": [
+          "Leadership to articulate a clear digital transformation vision.",
+          "Invest in upskilling the existing team or acquiring new digital talent.",
+          "Foster a culture of innovation and digital adoption within the organization."
+        ]
+      },
+      {
+        "name": "Digital Marketing",
+        "current_state": "The company has a limited social media presence and needs to develop a digital marketing strategy to address stagnating revenue.",
+        "maturity_score": 1,
+        "gaps": [
+          "Lack of a defined and executed digital marketing strategy.",
+          "Limited reach and engagement through social media and other digital channels.",
+          "Ineffective use of digital channels to attract and retain customers."
+        ],
+        "opportunities": [
+          "Develop and execute a comprehensive digital marketing strategy.",
+          "Enhance social media presence and engagement.",
+          "Utilize digital channels to promote new online services and reach a wider audience."
+        ]
+      }
+    ],
+    "overall_maturity": 1,
+    "priority_fields": [
+      "Customer Centricity",
+      "Process Engineering",
+      "Digital Marketing"
+    ]
+  },
+  "strategist": {
+    "strategic_purpose": "To revitalize Alexandra's Bikeshop by enhancing customer experience through integrated digital services, optimizing operational efficiency, and establishing a robust digital presence to ensure sustainable growth and a smooth leadership transition.",
+    "operational_pillars": {
+      "process": "Streamline repair scheduling and integrate online-to-offline customer journeys to improve efficiency and satisfaction.",
+      "people": "Develop digital literacy within the small team and foster leadership commitment to drive digital transformation.",
+      "platform": "Implement a unified data platform to centralize scattered information and support new digital services.",
+      "partners": "Leverage external expertise for technology implementation and digital marketing given limited in-house capabilities."
+    },
+    "expected_value": [
+      "Increased sales by targeting new customer segments and improving online service offerings.",
+      "Reduced operational costs and lead times within the repair workflow.",
+      "Enhanced customer satisfaction and loyalty through improved digital touchpoints.",
+      "Improved data management and accessibility for better business insights.",
+      "Preparation of the business for a digital-native successor, ensuring future readiness."
+    ],
+    "risks": [
+      "Continued revenue stagnation or decline due to delayed digital adoption.",
+      "Loss of market share to competitors offering superior digital services.",
+      "Inability to attract younger, digitally-savvy customer segments.",
+      "Budget overruns or inefficient technology investments due to limited IT budget and no in-house development capabilities.",
+      "Resistance to change or lack of adoption by the small team with limited digital skills."
+    ],
+    "quick_wins": [
+      "Establish a targeted social media presence to engage customers and promote services.",
+      "Implement a basic online repair scheduling system to reduce lead times.",
+      "Centralize customer contact information into a single, accessible digital record."
+    ],
+    "strategic_initiatives": [
+      {
+        "name": "Customer Experience Digitalization",
+        "rationale": "Address unmet customer expectations regarding online services and inefficient repair processes, a core 'What to transform' element.",
+        "framework_anchor": "Customer Centricity",
+        "impact": "high",
+        "effort": "medium"
+      },
+      {
+        "name": "Integrated Digital Marketing Strategy",
+        "rationale": "Improve limited social media presence and establish a digital marketing presence, a key 'What to transform' requirement.",
+        "framework_anchor": "Digital Marketing",
+        "impact": "medium",
+        "effort": "medium"
+      },
+      {
+        "name": "Data Centralization & Management",
+        "rationale": "Improve data management and accessibility, addressing scattered data, which is crucial for 'Cloud & Data' maturity.",
+        "framework_anchor": "Cloud & Data",
+        "impact": "high",
+        "effort": "medium"
+      },
+      {
+        "name": "Operational Process Streamlining",
+        "rationale": "Streamline repair scheduling and reduce lead times, aligning with 'Process transformation' as a basic requirement.",
+        "framework_anchor": "Process Engineering",
+        "impact": "high",
+        "effort": "medium"
+      },
+      {
+        "name": "Digital Leadership & Skills Development",
+        "rationale": "The key role of leadership is required for the implementation of digital transformation, and the team lacks deep digital skills.",
+        "framework_anchor": "Digital Leadership Culture",
+        "impact": "high",
+        "effort": "low"
+      }
+    ]
+  },
+  "roadmap": {
+    "horizon_months": 18,
+    "phases": [
+      {
+        "name": "Phase 1 — Foundations & Quick Wins (months 1-3)",
+        "objectives": [
+          "Establish foundational digital leadership and skills.",
+          "Implement immediate customer experience improvements and quick wins.",
+          "Begin centralizing critical customer data.",
+          "Initiate a basic digital marketing presence."
+        ],
+        "initiatives": [
+          {
+            "name": "Digital Leadership & Skills Development Kick-off",
+            "owner": "Alexandra (Owner/Manager)",
+            "kpis": [
+              "100% team participation in initial digital literacy workshops",
+              "Leadership commitment documented (e.g., vision statement)"
+            ],
+            "milestones": [
+              "Leadership workshop completed (Month 1)",
+              "Initial team digital skills assessment (Month 1)",
+              "Basic digital tools training for staff (Month 2)"
+            ],
+            "duration_weeks": 8,
+            "budget_estimate": "low",
+            "framework_anchor": "Digital Leadership Culture",
+            "dependencies": []
+          },
+          {
+            "name": "Basic Online Repair Scheduling System",
+            "owner": "Alexandra (Owner/Manager) / External Partner",
+            "kpis": [
+              "50% of repair bookings via online system",
+              "15% reduction in repair lead times"
+            ],
+            "milestones": [
+              "System selection and setup (Month 1)",
+              "Staff training and pilot launch (Month 2)",
+              "Public launch and promotion (Month 3)"
+            ],
+            "duration_weeks": 10,
+            "budget_estimate": "medium",
+            "framework_anchor": "Customer Centricity",
+            "dependencies": []
+          },
+          {
+            "name": "Customer Contact Data Centralization",
+            "owner": "Alexandra (Owner/Manager)",
+            "kpis": [
+              "80% of customer contact data migrated to a single system",
+              "Reduction in data retrieval time by 30%"
+            ],
+            "milestones": [
+              "Identify and select CRM/unified platform (Month 1)",
+              "Data migration plan developed (Month 2)",
+              "Initial customer data import completed (Month 3)"
+            ],
+            "duration_weeks": 12,
+            "budget_estimate": "low",
+            "framework_anchor": "Cloud & Data",
+            "dependencies": []
+          },
+          {
+            "name": "Targeted Social Media Presence Launch",
+            "owner": "External Marketing Partner",
+            "kpis": [
+              "200+ new followers on key platforms",
+              "10% increase in website traffic from social media"
+            ],
+            "milestones": [
+              "Social media strategy developed (Month 1)",
+              "Platform setup and initial content creation (Month 2)",
+              "First targeted campaign launched (Month 3)"
+            ],
+            "duration_weeks": 8,
+            "budget_estimate": "medium",
+            "framework_anchor": "Digital Marketing",
+            "dependencies": []
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — Core Digitalization & Integration (months 4-9)",
+        "objectives": [
+          "Expand digital customer experience offerings.",
+          "Streamline core operational processes through digital tools.",
+          "Establish a unified data platform for integrated insights.",
+          "Deepen digital marketing efforts and reach."
+        ],
+        "initiatives": [
+          {
+            "name": "Enhanced Online Customer Experience (Configurators & Services)",
+            "owner": "External Development Partner",
+            "kpis": [
+              "15% increase in online sales conversion rate",
+              "Launch of online configurator and home delivery options"
+            ],
+            "milestones": [
+              "Requirements gathering for configurator/delivery (Month 4)",
+              "Development and integration with e-commerce (Month 7)",
+              "Pilot launch of new features (Month 9)"
+            ],
+            "duration_weeks": 24,
+            "budget_estimate": "high",
+            "framework_anchor": "Customer Centricity",
+            "dependencies": [
+              "Customer Contact Data Centralization"
+            ]
+          },
+          {
+            "name": "Operational Workflow Streamlining & Integration",
+            "owner": "Alexandra (Owner/Manager) / External Process Consultant",
+            "kpis": [
+              "30% reduction in repair workflow lead time",
+              "90% digital tracking of repair status"
+            ],
+            "milestones": [
+              "Process mapping and optimization workshop (Month 4)",
+              "Integration of online scheduling with in-store workflow (Month 6)",
+              "Implementation of digital repair tracking system (Month 9)"
+            ],
+            "duration_weeks": 20,
+            "budget_estimate": "medium",
+            "framework_anchor": "Process Engineering",
+            "dependencies": [
+              "Basic Online Repair Scheduling System"
+            ]
+          },
+          {
+            "name": "Unified Data Platform Implementation",
+            "owner": "External IT Partner",
+            "kpis": [
+              "Integration of POS, e-commerce, and CRM data",
+              "Availability of 3 key business dashboards"
+            ],
+            "milestones": [
+              "Platform selection and architecture design (Month 4)",
+              "Integration of POS and e-commerce data (Month 7)",
+              "Initial reporting and analytics setup (Month 9)"
+            ],
+            "duration_weeks": 24,
+            "budget_estimate": "high",
+            "framework_anchor": "Cloud & Data",
+            "dependencies": [
+              "Customer Contact Data Centralization"
+            ]
+          },
+          {
+            "name": "Expanded Digital Marketing Campaigns",
+            "owner": "External Marketing Partner",
+            "kpis": [
+              "20% increase in website organic traffic",
+              "10% growth in online leads/inquiries"
+            ],
+            "milestones": [
+              "SEO audit and strategy development (Month 4)",
+              "Launch of targeted email marketing campaigns (Month 6)",
+              "Implementation of local search optimization (Month 8)"
+            ],
+            "duration_weeks": 24,
+            "budget_estimate": "medium",
+            "framework_anchor": "Digital Marketing",
+            "dependencies": [
+              "Targeted Social Media Presence Launch"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Phase 3 — Optimization & Growth (months 10-18)",
+        "objectives": [
+          "Optimize digital services based on data insights.",
+          "Explore new digital business opportunities.",
+          "Foster a culture of continuous digital improvement.",
+          "Ensure readiness for leadership transition."
+        ],
+        "initiatives": [
+          {
+            "name": "Advanced Customer Personalization & Feedback Loops",
+            "owner": "Alexandra (Owner/Manager) / External Marketing Partner",
+            "kpis": [
+              "5% increase in customer retention rate",
+              "Implementation of personalized recommendations",
+              "Customer satisfaction score (CSAT) improvement by 10%"
+            ],
+            "milestones": [
+              "Customer journey mapping and personalization strategy (Month 10)",
+              "Integration of feedback mechanisms (surveys, reviews) (Month 12)",
+              "Launch of personalized marketing/service offers (Month 15)"
+            ],
+            "duration_weeks": 30,
+            "budget_estimate": "medium",
+            "framework_anchor": "Customer Centricity",
+            "dependencies": [
+              "Unified Data Platform Implementation",
+              "Enhanced Online Customer Experience"
+            ]
+          },
+          {
+            "name": "Data-Driven Business Insights & Reporting",
+            "owner": "Alexandra (Owner/Manager) / External IT Partner",
+            "kpis": [
+              "Monthly business performance reports generated automatically",
+              "Identification of 2 new business opportunities from data analysis"
+            ],
+            "milestones": [
+              "Advanced analytics and dashboard development (Month 10)",
+              "Regular data review meetings established (Month 12)",
+              "Predictive analytics pilot for inventory/demand (Month 16)"
+            ],
+            "duration_weeks": 36,
+            "budget_estimate": "medium",
+            "framework_anchor": "Cloud & Data",
+            "dependencies": [
+              "Unified Data Platform Implementation"
+            ]
+          },
+          {
+            "name": "Exploration of New Digital Business Models",
+            "owner": "Alexandra (Owner/Manager) / Business Consultant",
+            "kpis": [
+              "Launch of 1 new digital service/product offering",
+              "Pilot program for a new revenue stream (e.g., subscription service)"
+            ],
+            "milestones": [
+              "Market research and ideation for new services (Month 11)",
+              "Business case development for top 2 ideas (Month 13)",
+              "Pilot launch of selected new service (Month 18)"
+            ],
+            "duration_weeks": 32,
+            "budget_estimate": "high",
+            "framework_anchor": "Digital Business Development",
+            "dependencies": [
+              "Data-Driven Business Insights & Reporting",
+              "Enhanced Online Customer Experience"
+            ]
+          },
+          {
+            "name": "Continuous Digital Skills & Innovation Program",
+            "owner": "Alexandra (Owner/Manager)",
+            "kpis": [
+              "Quarterly team training sessions on new digital tools",
+              "Establishment of an 'innovation suggestion box' with 2 ideas implemented"
+            ],
+            "milestones": [
+              "Ongoing training curriculum developed (Month 10)",
+              "Regular review of emerging technologies (Month 13)",
+              "Succession planning for digital leadership (Month 18)"
+            ],
+            "duration_weeks": 36,
+            "budget_estimate": "low",
+            "framework_anchor": "Digital Leadership Culture",
+            "dependencies": [
+              "Digital Leadership & Skills Development Kick-off"
+            ]
+          }
+        ]
+      }
+    ],
+    "kpi_summary": [
+      "Overall sales increase by 15% (online and offline combined)",
+      "Customer satisfaction (CSAT) score improvement by 10%",
+      "Operational efficiency: 25% reduction in average repair lead time",
+      "Digital customer engagement: 20% increase in online traffic and social media engagement",
+      "Data utilization: 90% of key business data centralized and accessible for reporting"
+    ]
+  },
+  "evaluator": {
+    "consistency_check": [
+      "The roadmap aligns well with the stated 'why_transform', 'stakes', and 'objectives'. The initiatives directly address the business needs and desired outcomes.",
+      "The 'operational_pillars' are reflected in the roadmap's initiatives, particularly 'people' (Digital Leadership & Skills Development), 'process' (Online Repair Scheduling), 'platform' (Customer Contact Data Centralization), and 'partners' (External Marketing/Development Partner).",
+      "The roadmap acknowledges the constraints, particularly the reliance on external partners due to no in-house developers and limited digital skills. The budget estimates are 'low' to 'medium' for Phase 1, which seems to fit the <CHF 60k constraint for year 1, assuming 'medium' is around CHF 15-20k per initiative."
+    ],
+    "framework_coverage": {
+      "why_what_how": "covered",
+      "seven_action_fields": "covered",
+      "operational_pillars": "covered"
+    },
+    "weaknesses": [
+      "The roadmap's budget estimates ('low', 'medium') are vague. Given the tight CHF 60k budget for year 1, a more precise breakdown for each initiative in Phase 1 (months 1-3) and Phase 2 (months 4-9) is crucial to ensure feasibility. 'Medium' could easily exceed the remaining budget if not carefully managed.",
+      "The 'Digital Leadership & Skills Development Kick-off' initiative is critical but its KPIs ('100% team participation', 'Leadership commitment documented') are output-focused rather than outcome-focused. It lacks metrics for actual skill improvement or impact on digital adoption.",
+      "The 'Customer Contact Data Centralization' initiative is fundamental, but its scope is limited to 'contact data'. The business case mentions 'data scattered across POS, Excel files, and paper repair tickets', implying a broader need for data integration beyond just contacts. This initiative might be underestimated in complexity and cost.",
+      "The roadmap relies heavily on external partners, which is necessary given the constraints. However, it doesn't explicitly detail how knowledge transfer will occur to upskill internal staff over time, which is vital for the 'prepare for a digital-native successor' stake and long-term sustainability.",
+      "The 'Enhanced Online Customer Experience' initiative in Phase 2 is very ambitious (configurators, home delivery, trade-in) and has a relatively short development timeline (4-7 months). This could be a significant budget strain and complexity risk, especially with no in-house developers and a limited budget.",
+      "The roadmap does not explicitly address the integration of the Shopify website with new systems (e.g., configurator, CRM, repair scheduling). This integration is key to a seamless customer experience and could be complex."
+    ],
+    "missing_elements": [
+      "A clear, itemized budget breakdown for each initiative, especially for Phase 1, to ensure it stays within the CHF 60k limit for year 1.",
+      "Specific KPIs for employee digital skill improvement and adoption rates of new tools, beyond just participation.",
+      "A strategy for knowledge transfer from external partners to internal staff to build sustainable in-house capabilities.",
+      "A more detailed plan for integrating the existing Shopify platform with new functionalities (e.g., online configurator, repair scheduling).",
+      "Consideration of a Minimum Viable Product (MVP) approach for complex initiatives like the online configurator to manage budget and risk.",
+      "A clear definition of the 'unified platform' for data centralization – is it a CRM, an ERP, or a custom solution? This impacts budget and complexity."
+    ],
+    "risks_underestimated": [
+      "**Budget Overruns**: The 'medium' budget estimates for multiple initiatives in Phase 1 and the ambitious Phase 2 initiatives could easily exceed the CHF 60k year 1 limit, especially considering external partner costs.",
+      "**Employee Resistance/Low Adoption**: While 'digital literacy workshops' are planned, the risk of employees with 'no deep digital skills' struggling to adopt new systems (e.g., online repair scheduling, CRM) is high and could impact KPIs and project success.",
+      "**Integration Complexity**: Integrating disparate data sources (POS, Excel, paper) and new systems (CRM, online configurator, repair scheduler) with the existing Shopify site can be far more complex and costly than estimated, especially without in-house developers.",
+      "**Scope Creep**: Initiatives like 'Enhanced Online Customer Experience' are broad. Without strict scope management, they can quickly expand, leading to delays and budget overruns.",
+      "**Data Quality Issues**: Centralizing 'customer contact data' from scattered sources will likely uncover data quality issues (duplicates, incompleteness) which can significantly increase migration effort and cost."
+    ],
+    "overall_score": 6,
+    "recommendations": [
+      "Provide a detailed, itemized budget for each initiative in Phase 1, specifying expected costs for software, external services, and training, to confirm adherence to the CHF 60k constraint.",
+      "Refine KPIs for 'Digital Leadership & Skills Development' to measure actual skill acquisition and adoption rates (e.g., proficiency scores, usage rates of new tools).",
+      "Prioritize a phased approach for the 'Enhanced Online Customer Experience' (e.g., start with a basic configurator MVP, then add home delivery/trade-in) to manage budget and complexity.",
+      "Include a dedicated initiative or clear sub-task for knowledge transfer and internal upskilling from external partners to ensure long-term sustainability and prepare the successor.",
+      "Explicitly define the chosen 'unified platform' (e.g., specific CRM solution) and outline its integration strategy with Shopify and POS systems.",
+      "Allocate specific time and budget for data cleansing and quality assurance during the 'Customer Contact Data Centralization' initiative."
+    ]
+  }
+}
