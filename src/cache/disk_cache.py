@@ -33,6 +33,7 @@ class DiskCache:
 
     def set(self, payload: Any, value: Any) -> None:
         p = self._path(self._key(payload))
+        p.parent.mkdir(parents=True, exist_ok=True)  # survive the folder being deleted mid-session
         with open(p, "wb") as f:
             pickle.dump(value, f)
 

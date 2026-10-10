@@ -111,6 +111,23 @@ def _roadmap_card(roadmap_dict):
         st.markdown("**Program KPIs:** " + " · ".join(roadmap_dict["kpi_summary"]))
 
 
+def _render_full_trace(trace: PipelineTrace, *, show_raw: bool):
+    """Render every stage at once (cache hits arrive as a single finished trace)."""
+    _agent_card("planner", trace.plan, show_raw=show_raw)
+    _retrieval_card(trace)
+    for stage, result in (
+        ("framework", trace.framework),
+        ("canvas", trace.canvas),
+        ("strategist", trace.strategy),
+        ("roadmap", trace.roadmap),
+    ):
+        _agent_card(stage, result, show_raw=show_raw)
+    if isinstance(trace.roadmap.output, dict):
+        _roadmap_card(trace.roadmap.output)
+    if trace.evaluation is not None:
+        _agent_card("evaluator", trace.evaluation, show_raw=show_raw)
+
+
 # ─── Sidebar controls ─────────────────────────────────────────────────────────
 with st.sidebar:
     st.subheader("⚙️ Run options")
@@ -169,6 +186,7 @@ if launch and business_case.strip():
                     "Click **Clear pipeline cache** in the sidebar to force a fresh run.",
                     icon="ℹ️",
                 )
+                _render_full_trace(trace, show_raw=show_raw)
                 continue
             if stage == "planner" and "planner" not in rendered:
                 _agent_card("planner", trace.plan, show_raw=show_raw)
