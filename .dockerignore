@@ -1,0 +1,9 @@
+.git
+.venv*
+.cache
+.ruff_cache
+.pytest_cache
+**/__pycache__
+vector_store/index
+.env
+docs/
