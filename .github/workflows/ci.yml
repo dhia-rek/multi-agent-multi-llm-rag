@@ -35,7 +35,11 @@ jobs:
       - run: uv run python -m scripts.evaluate
       - name: API health and demo roadmap
         run: |
-          uv run uvicorn api.main:app --port 8000 &
+          # Run from .venv directly: a background `uv run` keeps the uv cache locked
+          # and makes setup-uv's post-job cache prune time out.
+          .venv/bin/uvicorn api.main:app --port 8000 &
+          SERVER=$!
+          trap 'kill $SERVER' EXIT
           for i in $(seq 60); do curl -sf localhost:8000/health && break; sleep 1; done
           curl -sf localhost:8000/health | grep -q '"demo_mode":true'
           curl -sf -X POST localhost:8000/generate-roadmap \
