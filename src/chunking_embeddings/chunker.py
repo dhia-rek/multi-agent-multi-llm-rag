@@ -21,8 +21,26 @@ class Chunk:
 _PARA = re.compile(r"\n\s*\n")
 
 
-def _split_paragraphs(text: str) -> list[str]:
-    return [p.strip() for p in _PARA.split(text) if p.strip()]
+def _split_paragraphs(text: str, max_len: int) -> list[str]:
+    """Split on blank lines; break anything longer than max_len into lines, then hard-wrap.
+
+    pypdf rarely emits blank lines, so without the fallback a whole page becomes one
+    "paragraph" and one oversized chunk that the embedder silently truncates.
+    """
+    out: list[str] = []
+    for para in (p.strip() for p in _PARA.split(text)):
+        if not para:
+            continue
+        if len(para) <= max_len:
+            out.append(para)
+            continue
+        for line in (ln.strip() for ln in para.split("\n")):
+            while len(line) > max_len:
+                out.append(line[:max_len])
+                line = line[max_len:]
+            if line:
+                out.append(line)
+    return out
 
 
 def chunk_documents(
@@ -33,7 +51,7 @@ def chunk_documents(
     counter = 0
 
     for doc, page_num, page_text in iter_pages(docs):
-        paragraphs = _split_paragraphs(page_text)
+        paragraphs = _split_paragraphs(page_text, chunk_size)
         buffer = ""
         for para in paragraphs:
             if not buffer:
