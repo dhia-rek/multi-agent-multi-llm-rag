@@ -70,7 +70,7 @@ st.markdown(
 
 st.subheader("📐 Architecture at a glance")
 cols = st.columns(5)
-for col, block in zip(cols, PIPELINE_BLOCKS):
+for col, block in zip(cols, PIPELINE_BLOCKS, strict=False):
     with col:
         st.markdown(f"### {block['icon']}")
         st.markdown(f"**{block['name']}**")
@@ -113,7 +113,7 @@ st.divider()
 # ─── Agent cards ──────────────────────────────────────────────────────────────
 st.subheader("🤖 Meet the six agents")
 st.caption("Each has one role, one prompt, one expected output. Click for details.")
-for key, agent in AGENTS.items():
+for _key, agent in AGENTS.items():
     with st.expander(f"{agent['icon']}  **{agent['name']}** — {agent['purpose']}"):
         c1, c2 = st.columns([3, 2])
         with c1:

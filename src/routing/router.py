@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from src.llm_clients.base import BaseLLMClient, QuotaExhaustedError
+from src.llm_clients.base import BaseLLMClient
 from src.llm_clients.gemini import GeminiClient
 from src.llm_clients.mock import MockLLMClient
 from src.llm_clients.ollama import OllamaClient

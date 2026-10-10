@@ -20,7 +20,7 @@ st.caption(
     "**knowledge base** (chunked + embedded + indexed) and the fourth as the **business case** input."
 )
 
-for key, f in FRAMEWORKS.items():
+for _key, f in FRAMEWORKS.items():
     with st.container(border=True):
         st.markdown(f"### {f['title']}")
         st.caption(f["source"])

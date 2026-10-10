@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import pickle
-from dataclasses import asdict
 from pathlib import Path
 
 import faiss
@@ -70,7 +69,7 @@ class FaissStore:
             query_vec = query_vec[None, :]
         scores, idxs = self.index.search(query_vec.astype("float32"), k)
         out: list[tuple[Chunk, float]] = []
-        for score, i in zip(scores[0], idxs[0]):
+        for score, i in zip(scores[0], idxs[0], strict=False):
             if i == -1:
                 continue
             out.append((self.chunks[i], float(score)))

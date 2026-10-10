@@ -29,7 +29,7 @@ from src.agents.planner import PlannerAgent
 from src.agents.roadmap import RoadmapAgent
 from src.agents.strategist import StrategistAgent
 from src.cache.disk_cache import DiskCache
-from src.retrieval.retriever import Retriever, RetrievedPassage
+from src.retrieval.retriever import RetrievedPassage, Retriever
 from src.routing.router import Router
 from src.utils.config import settings
 from src.utils.logging import get_logger
@@ -117,7 +117,7 @@ class Orchestrator:
     def run(self, business_case: str, *, run_evaluator: bool = True) -> PipelineTrace:
         """Drain the streaming run and return the final trace."""
         trace = None
-        for _stage, trace in self.run_streaming(business_case, run_evaluator=run_evaluator):
+        for _stage, trace in self.run_streaming(business_case, run_evaluator=run_evaluator):  # noqa: B007
             pass
         assert trace is not None
         return trace

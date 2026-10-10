@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 
 from src.llm_clients.base import BaseLLMClient, LLMResponse
 from src.utils.config import settings

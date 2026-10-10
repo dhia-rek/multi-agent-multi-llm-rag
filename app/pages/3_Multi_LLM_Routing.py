@@ -67,7 +67,7 @@ st.divider()
 # ─── Per-agent table ──────────────────────────────────────────────────────────
 st.subheader("📋 What each agent gets routed to")
 rows = []
-for key, a in AGENTS.items():
+for _key, a in AGENTS.items():
     rows.append(
         {
             "agent": f"{a['icon']} {a['name']}",
