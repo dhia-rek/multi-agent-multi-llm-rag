@@ -97,6 +97,15 @@ def test_per_minute_429_without_hint_uses_default_delay(monkeypatch, no_sleep):
     assert no_sleep == [gemini.DEFAULT_RETRY_DELAY] * 2
 
 
+def test_503_retries_with_fixed_delay(monkeypatch, no_sleep):
+    err = errors.ServerError(503, {"error": {"code": 503, "message": "high demand", "status": "UNAVAILABLE"}})
+    client = _client(monkeypatch, err)
+    with pytest.raises(gemini.TransientError):
+        client._call("hi", None)
+    assert client._client.models.calls == 3
+    assert no_sleep == [gemini.SERVER_ERROR_DELAY] * 2
+
+
 def test_other_client_errors_propagate(monkeypatch, no_sleep):
     err = errors.ClientError(400, {"error": {"code": 400, "message": "bad", "status": "X"}})
     client = _client(monkeypatch, err)

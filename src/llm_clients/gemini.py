@@ -6,6 +6,8 @@ Behaviour
   suggests (30 s if it gives none, capped at 60 s), up to 3 attempts. The wait
   lives in tenacity only, so there is no double wait and no sleep after the
   last attempt.
+- Transient server errors (500/502/503/504, e.g. "model overloaded") get the
+  same retry path with a fixed 10 s wait. The SDK itself doesn't retry.
 - Daily-quota errors raise instantly so the router can fail over to another tier
   rather than retrying for minutes.
 """
@@ -32,14 +34,20 @@ log = get_logger(__name__)
 
 DEFAULT_RETRY_DELAY = 30.0
 MAX_RETRY_DELAY = 60.0
+SERVER_ERROR_DELAY = 10.0
+_TRANSIENT_SERVER_CODES = {500, 502, 503, 504}
 
 
-class RateLimitedError(RuntimeError):
-    """Per-minute rate limit hit; safe to retry after `delay` seconds."""
+class TransientError(RuntimeError):
+    """Safe to retry after `delay` seconds."""
 
     def __init__(self, message: str, delay: float):
         super().__init__(message)
         self.delay = delay
+
+
+class RateLimitedError(TransientError):
+    """Per-minute rate limit hit."""
 
 
 def _suggested_delay(err: Exception) -> float | None:
@@ -49,7 +57,7 @@ def _suggested_delay(err: Exception) -> float | None:
 
 
 def _wait_server_delay(state: RetryCallState) -> float:
-    """tenacity wait: use the delay carried by the RateLimitedError."""
+    """tenacity wait: use the delay carried by the TransientError."""
     exc = state.outcome.exception() if state.outcome else None
     delay = getattr(exc, "delay", DEFAULT_RETRY_DELAY)
     return min(delay, MAX_RETRY_DELAY)
@@ -69,13 +77,18 @@ class GeminiClient(BaseLLMClient):
     @retry(
         stop=stop_after_attempt(3),
         wait=_wait_server_delay,
-        retry=retry_if_exception_type(RateLimitedError),
+        retry=retry_if_exception_type(TransientError),
         sleep=lambda s: time.sleep(s),  # late-bound so tests can patch time.sleep
         reraise=True,
     )
     def _call(self, prompt: str, cfg: types.GenerateContentConfig):
         try:
             return self._client.models.generate_content(model=self.name, contents=prompt, config=cfg)
+        except errors.ServerError as e:
+            if e.code not in _TRANSIENT_SERVER_CODES:
+                raise
+            log.warning("Gemini %s returned %s, retry in %.0fs", self.name, e.code, SERVER_ERROR_DELAY)
+            raise TransientError(str(e), SERVER_ERROR_DELAY) from e
         except errors.ClientError as e:
             if e.code != 429:
                 raise
@@ -97,10 +110,15 @@ class GeminiClient(BaseLLMClient):
         )
         resp = self._call(prompt, cfg)
         text = (resp.text or "").strip()
+        finish = resp.candidates[0].finish_reason if resp.candidates else None
+        if finish == types.FinishReason.MAX_TOKENS:
+            log.warning("Gemini %s hit max_output_tokens; output is truncated.", self.name)
         usage = None
         if resp.usage_metadata:
             usage = {
                 "prompt_tokens": resp.usage_metadata.prompt_token_count,
                 "output_tokens": resp.usage_metadata.candidates_token_count,
+                "thinking_tokens": resp.usage_metadata.thoughts_token_count,
+                "finish_reason": finish.name if finish else None,
             }
         return LLMResponse(text=text, model=self.name, tier=self.tier, usage=usage)
