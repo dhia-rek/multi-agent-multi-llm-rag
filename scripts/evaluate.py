@@ -15,7 +15,8 @@ Offline (always runs, no API key):
 
 Live (only with GOOGLE_API_KEY and --live):
     Full pipeline per case: JSON parse rate across the six agents, evaluator
-    score, canvas priority fields vs expected fields, end-to-end latency.
+    score, canvas priority fields vs expected fields, end-to-end latency (sum of
+    stage timings). Stops at the first daily-quota fallback to save calls.
 
 Usage:
     python -m scripts.evaluate            # offline retrieval table
@@ -106,10 +107,15 @@ def run_live(cases: list[dict]) -> list[dict]:
 
     orch = Orchestrator()
     rows = []
-    for case in cases:
-        t = time.perf_counter()
+    for i, case in enumerate(cases):
         trace = orch.run(case["business_case"])
-        secs = time.perf_counter() - t
+        if orch.router.fallback_used:
+            # Daily quota hit: this and every later case would only measure the mock.
+            rows += [{"id": c["id"], "quota": True} for c in cases[i:]]
+            break
+        # Sum of stage timings, not wall clock: a cached case (e.g. the one
+        # recorded by record_demo) reports the time of the run that produced it.
+        secs = sum(trace.timings.values())
         agents = [trace.plan, trace.framework, trace.canvas, trace.strategy, trace.roadmap, trace.evaluation]
         parsed = sum(isinstance(a.output, dict) for a in agents if a)
         canvas = trace.canvas.output if isinstance(trace.canvas.output, dict) else {}
@@ -157,6 +163,9 @@ def live_table(rows: list[dict]) -> str:
         "|---|---|---|---|---|",
     ]
     for r in rows:
+        if r.get("quota"):
+            lines.append(f"| {r['id']} | not run: Gemini daily quota reached | | | |")
+            continue
         lines.append(
             f"| {r['id']} | {r['json_ok']} | {r['priority_hit']:.2f} | {r['eval_score']} | {r['seconds']} |"
         )

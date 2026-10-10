@@ -12,7 +12,7 @@
 
 ![Demo: the six agents running on the sample bikeshop case](docs/img/demo.gif)
 
-<sub>Recorded in **demo mode**: retrieval is live, and the agent outputs come from a hand-written fixture (see [Demo mode](#-demo-mode-no-api-key)).</sub>
+<sub>Recorded in **demo mode**: retrieval is live, and the agent outputs are replayed from a recorded Gemini run (see [Demo mode](#-demo-mode-no-api-key)).</sub>
 
 > **Live demo:** not deployed yet. The repo is ready for Hugging Face Spaces; see [Deploy](#%EF%B8%8F-deploy).
 
@@ -36,7 +36,7 @@ The output is strict JSON (phases, initiatives, owners, KPIs, milestones, budget
 - **Cost-aware multi-LLM routing**: an explicit policy (`src/routing/router.py`) maps each agent's task type, complexity and criticality to Gemini Flash-Lite, Gemini Flash or Ollama. Per-minute rate limits are retried with the server's suggested delay. If a tier hits its daily quota, it's swapped out so the run still completes.
 - **Local RAG**: pypdf → paragraph-aware chunking → MiniLM embeddings on CPU → FAISS cosine index. No API cost for retrieval.
 - **Measured, then fixed**: the evaluation harness showed that only 36% of corpus tokens were ever embedded, because whole PDF pages became single chunks. The [chunking fix](#-evaluation) raised that to 99% and more than doubled field-query precision.
-- **Works without a key**: demo mode replays fixture agent outputs over live retrieval, so the app, API, CI and a public demo all run offline.
+- **Works without a key**: demo mode replays a recorded Gemini run's agent outputs over live retrieval, so the app, API, CI and a public demo all run offline.
 - **Production basics**: offline pytest suite, ruff, GitHub Actions, `uv.lock`, Dockerfile and Hugging Face Spaces config.
 - **Optimisations**: persistent index, SHA-keyed pipeline cache, one shared prompt header, context capped at 6k chars per agent, and an optional evaluator.
 
@@ -136,14 +136,20 @@ pypdf output rarely contains blank lines, so the chunker treated each page as on
 
 The worked bikeshop roadmap (`corpus/bikeshop_roadmap/`) is indexed alongside the framework papers and dominates retrieval, especially for the bikeshop case itself. See [Limitations](#%EF%B8%8F-limitations).
 
-**Live pipeline metrics** (`python -m scripts.evaluate --live`, needs `GOOGLE_API_KEY`):
+**Live pipeline metrics** (`python -m scripts.evaluate --live`, needs `GOOGLE_API_KEY`). Run on 2026-10-10 with `gemini-2.5-flash-lite` (fast tier) and `gemini-2.5-flash` (powerful tier), free tier:
 
-| Metric | Value |
-|---|---|
-| Agents returning valid JSON | TODO: run with a Gemini key |
-| Canvas priority fields matching expected fields | TODO |
-| Evaluator score (1–10), mean over 5 cases | TODO |
-| End-to-end latency per case | TODO |
+| Case | Agents with valid JSON | Canvas priority fields in expected set | Evaluator score (1–10) | Latency (s) |
+|---|---|---|---|---|
+| alexandra_bikeshop | 6/6 | 0.67 | 6 | 47.5 |
+| family_bakery | 6/6 | 0.67 | 6 | 45.6 |
+| regional_logistics | 6/6 | 0.67 | 6 | 42.7 |
+| dental_clinic_group | not run: daily quota | | | |
+| industrial_parts_distributor | not run: daily quota | | | |
+| **3 cases** | **18/18** | **0.67** | **6.0** | **45.3 mean** |
+
+The free-tier daily cap on `gemini-2.5-flash` ran out during the fourth case, after 16 successful requests that day. The router fell back to the mock as designed, so those two rows measure nothing and are left out. Latency is the sum of stage timings; in the recorded bikeshop run the four powerful-tier stages (canvas, strategist, roadmap, evaluator) took 87% of it.
+
+Before the thinking-budget fix, this table would have read 2/6: `gemini-2.5-flash` thinks by default, and thinking tokens count against `max_output_tokens`. With the old 2048 limit it spent ~1960 tokens thinking and cut every powerful-tier answer off after ~80 tokens. The powerful tier now gets `GEMINI_THINKING_BUDGET` (1024) on top of a 4096-token answer budget, and the fast tier runs with thinking off.
 
 ---
 
@@ -202,7 +208,7 @@ curl -s -X POST localhost:8000/generate-roadmap -H 'Content-Type: application/js
 | `on` | Always demo mode, even with a key |
 | `off` | Never: without a key, agents return placeholder mock text |
 
-In demo mode, retrieval runs for real, while the six agents answer from [`data/demo/alexandra_bikeshop.fixture.json`](data/demo/alexandra_bikeshop.fixture.json). **That fixture is hand-written to match the agent schemas for the sample bikeshop case. It is not a recorded Gemini output.** Any other business case will still show bikeshop outputs, and the UI says so. Demo traces are cached separately from live ones.
+In demo mode, retrieval runs for real, while the six agents replay [`data/demo/alexandra_bikeshop.fixture.json`](data/demo/alexandra_bikeshop.fixture.json). **That fixture was recorded from a live Gemini run on 2026-10-10** (`gemini-2.5-flash-lite` for planner and framework, `gemini-2.5-flash` for the other four agents). Outputs are verbatim, with per-stage timings and token usage in its `recorded` block. Regenerate it with `python -m scripts.record_demo` (6 Gemini calls). Any other business case will still show bikeshop outputs, and the UI says so. Demo traces are cached separately from live ones.
 
 ### Configuration
 
@@ -211,6 +217,7 @@ In demo mode, retrieval runs for real, while the six agents answer from [`data/d
 | `GOOGLE_API_KEY` | – | Enables Gemini |
 | `GEMINI_FAST_MODEL` | `gemini-2.5-flash-lite` | Fast tier |
 | `GEMINI_POWERFUL_MODEL` | `gemini-2.5-flash` | Powerful tier |
+| `GEMINI_THINKING_BUDGET` | `1024` | Thinking-token cap for the powerful tier, added on top of the answer budget |
 | `OLLAMA_MODEL` / `OLLAMA_HOST` | – / `http://localhost:11434` | Optional local tier |
 | `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | Local embedder |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` / `RAG_TOP_K` | `900` / `150` / `6` | Retrieval |
@@ -264,7 +271,7 @@ src/
   vector_store/         FAISS build / save / load / search
   retrieval/            top-k retriever with framework filter
   cache/                SHA-keyed disk cache
-scripts/                build_index.py · evaluate.py
+scripts/                build_index.py · evaluate.py · record_demo.py
 data/                   sample case · demo fixture · eval cases
 corpus/                 reference PDFs (third-party, see corpus/README.md)
 tests/                  pytest suite
@@ -278,7 +285,7 @@ Python · Google Gemini 2.5 (`google-genai`) · Ollama (optional) · sentence-tr
 ## ⚠️ Limitations
 
 - **Example roadmap in the index.** The worked bikeshop roadmap is indexed with the framework papers and supplies 63% of retrieved passages on average (100% for the bikeshop case). That's useful as an exemplar, but it also means the sample case partly retrieves its own answer.
-- **Demo outputs are illustrative.** The fixture is hand-written; live-model numbers in the evaluation table are still TODO.
+- **Small live evaluation.** Live metrics cover 3 of the 5 cases (free-tier daily quota), from one run each, so there's no variance estimate. The evaluator is the same model family it grades.
 - **Lexical evaluation.** Field-query precision checks whether a passage names the field. It's a cheap proxy, not human relevance judgement.
 - **English PDFs only, small corpus** (4 documents, 205 chunks).
 

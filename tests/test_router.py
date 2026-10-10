@@ -61,7 +61,7 @@ def test_signature_differs_between_demo_and_mock(monkeypatch):
     demo = _router(monkeypatch, demo_mode="on").signature()
     mock = _router(monkeypatch, demo_mode="off", google_api_key=None).signature()
     assert demo != mock
-    assert demo == {"mode": "demo"}
+    assert demo["mode"] == "demo"
     assert mock["fast"] == mock["powerful"] == "mock"
 
 
@@ -76,3 +76,15 @@ def test_route_returns_client_and_decision(monkeypatch):
     client, decision = r.route("reasoning")
     assert decision.tier == "powerful"
     assert client.name == "demo-fixture-powerful"
+
+
+def test_demo_signature_tracks_fixture_contents(monkeypatch, tmp_path):
+    from src.routing.router import Router
+    from tests.conftest import make_settings
+
+    fixture = tmp_path / "f.json"
+    fixture.write_text("{}")
+    monkeypatch.setattr("src.routing.router.settings", make_settings(demo_mode="on", demo_fixture=fixture))
+    before = Router().signature()
+    fixture.write_text('{"planner": {}}')
+    assert Router().signature() != before

@@ -14,6 +14,7 @@ Rule of thumb:
 """
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Literal
 
@@ -50,7 +51,7 @@ class Router:
         # Tiers that hit a permanent (daily) quota cap during this run.
         self._dead_tiers: set[str] = set()
         if self.demo:
-            log.warning("DEMO MODE — agents answer from a hand-written fixture, not a live LLM.")
+            log.warning("DEMO MODE — agents replay a recorded Gemini run, not a live LLM.")
         elif not self._has_gemini:
             log.warning(
                 "GOOGLE_API_KEY missing — falling back to MockLLMClient. "
@@ -66,7 +67,10 @@ class Router:
         """What would answer each tier — part of the pipeline cache key, so a demo
         or mock run is never served back once a real key is configured."""
         if self.demo:
-            return {"mode": "demo"}
+            # Include the fixture contents so a re-recorded fixture isn't masked by cache.
+            fixture = settings.demo_fixture
+            digest = hashlib.sha256(fixture.read_bytes()).hexdigest()[:16] if fixture.exists() else None
+            return {"mode": "demo", "fixture": digest}
         return {
             "fast": settings.gemini_fast_model if self._has_gemini else "mock",
             "powerful": settings.gemini_powerful_model if self._has_gemini else "mock",

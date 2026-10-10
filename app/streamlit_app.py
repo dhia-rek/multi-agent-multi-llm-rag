@@ -45,7 +45,7 @@ with st.sidebar:
         st.error("Vector index missing — run `python -m scripts.build_index`")
 
     if settings.demo_active:
-        st.warning("🎭 Demo mode — agents answer from a hand-written fixture (no Gemini key)")
+        st.warning("🎭 Demo mode — agents replay a recorded Gemini run (no Gemini key)")
     elif settings.google_api_key:
         st.success("Gemini API key detected")
     else:

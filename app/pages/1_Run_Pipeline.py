@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.edu_content import AGENTS  # noqa: E402
+from src.llm_clients.demo import load_fixture  # noqa: E402
 from src.orchestrator.pipeline import Orchestrator, PipelineTrace  # noqa: E402
 from src.utils.config import settings  # noqa: E402
 
@@ -155,9 +156,12 @@ default_text = (
 )
 
 if settings.demo_active:
+    rec = load_fixture(settings.demo_fixture).get("recorded", {})
+    models = " / ".join(dict.fromkeys(rec.get("model_per_stage", {}).values())) or "Gemini"
     st.warning(
-        "**Demo mode** — no Gemini key is configured, so the six agents answer from a "
-        "hand-written fixture for the sample bikeshop case (retrieval still runs for real). "
+        "**Demo mode** — no Gemini key is configured, so the six agents replay outputs "
+        f"recorded from a live Gemini run on {rec.get('date', '?')} ({models}) for the "
+        "sample bikeshop case (retrieval still runs for real). "
         "Other business cases will still show the bikeshop outputs. "
         "Set `GOOGLE_API_KEY` to run live models.",
         icon="🎭",

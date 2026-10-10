@@ -38,7 +38,7 @@ class Settings:
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "150"))
     top_k: int = int(os.getenv("RAG_TOP_K", "6"))
 
-    # Offline demo: "auto" = use the hand-written fixture outputs when no Gemini key is set,
+    # Offline demo: "auto" = replay the recorded fixture outputs when no Gemini key is set,
     # "on" = always, "off" = never (falls back to the placeholder MockLLMClient).
     demo_mode: str = os.getenv("DEMO_MODE", "auto").strip().lower()
     demo_fixture: Path = PROJECT_ROOT / "data" / "demo" / "alexandra_bikeshop.fixture.json"

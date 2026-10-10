@@ -1,9 +1,10 @@
-"""Offline demo client: answers each agent from a hand-written fixture.
+"""Offline demo client: replays each agent's output from a recorded fixture.
 
 Used when no GOOGLE_API_KEY is configured (DEMO_MODE=auto) or when forced with
 DEMO_MODE=on. Retrieval still runs for real; only the LLM calls are replaced.
-The fixture is written for the sample bikeshop case, so for any other input the
-agent outputs will still describe the bikeshop. The UI says so.
+The fixture is recorded from one live Gemini run of the sample bikeshop case
+(scripts/record_demo.py), so for any other input the agent outputs will still
+describe the bikeshop. The UI says so.
 """
 from __future__ import annotations
 
