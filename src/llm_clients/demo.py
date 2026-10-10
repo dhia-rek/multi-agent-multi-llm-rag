@@ -1,4 +1,4 @@
-"""Offline demo client: answers each agent from a recorded fixture.
+"""Offline demo client: answers each agent from a hand-written fixture.
 
 Used when no GOOGLE_API_KEY is configured (DEMO_MODE=auto) or when forced with
 DEMO_MODE=on. Retrieval still runs for real; only the LLM calls are replaced.

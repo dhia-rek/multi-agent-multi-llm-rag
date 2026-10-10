@@ -50,7 +50,7 @@ class Router:
         # Tiers that hit a permanent (daily) quota cap during this run.
         self._dead_tiers: set[str] = set()
         if self.demo:
-            log.warning("DEMO MODE — agents answer from a recorded fixture, not a live LLM.")
+            log.warning("DEMO MODE — agents answer from a hand-written fixture, not a live LLM.")
         elif not self._has_gemini:
             log.warning(
                 "GOOGLE_API_KEY missing — falling back to MockLLMClient. "

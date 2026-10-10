@@ -16,4 +16,4 @@ Multi-agent, multi-LLM RAG demo. Source, docs and evaluation:
 https://github.com/dhia-rek/multi-agent-multi-llm-rag
 
 Without a `GOOGLE_API_KEY` secret this Space runs in **demo mode**: retrieval is
-live, agent outputs come from a recorded fixture for the sample case.
+live, agent outputs come from a hand-written fixture for the sample case.
