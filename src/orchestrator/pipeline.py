@@ -1,37 +1,25 @@
 """End-to-end pipeline: business case in → structured roadmap + evaluation out.
 
-Pipeline stages (with conditional execution and caching):
-    1. Planner          (Flash)   — extract intent, build retrieval queries
-    2. Retrieve         (RAG)     — pull passages from FAISS
-    3. Framework        (Flash)   — classify by Why/What/How + 7 fields
-    4. Canvas Analysis  (Pro)     — score maturity, find gaps
-    5. Strategist       (Pro)     — synthesize strategic trajectory
-    6. Roadmap          (Pro)     — produce structured roadmap
-    7. Evaluator        (Pro)     — critique result
+The stages run as a LangGraph StateGraph (src/orchestrator/graph.py):
+planner → retrieval → (framework ‖ canvas) → strategist → roadmap → evaluator.
 
 Two run modes:
     .run(...)        → blocks until all stages are done, returns final trace.
     .run_streaming() → generator that yields after each stage; the UI uses this
                        to render live progress and per-agent annotations.
+                       framework and canvas run in parallel, so they arrive in
+                       completion order.
 """
 from __future__ import annotations
 
-import json
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
 from src.agents.base import AgentResult
-from src.agents.canvas_analysis import CanvasAnalysisAgent
-from src.agents.evaluator import EvaluatorAgent
-from src.agents.framework import FrameworkAgent
-from src.agents.planner import PlannerAgent
-from src.agents.roadmap import RoadmapAgent
-from src.agents.strategist import StrategistAgent
 from src.cache.disk_cache import DiskCache
+from src.orchestrator.graph import RESULT_FIELD, build_graph
 from src.retrieval.retriever import RetrievedPassage, Retriever
 from src.routing.router import Router
-from src.utils.config import settings
 from src.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -83,36 +71,17 @@ class PipelineTrace:
         }
 
 
-def _as_text(value: Any) -> str:
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, indent=2, ensure_ascii=False)
-    return str(value)
+# graph node -> stream stage name (framework/canvas/... share their node name)
+_STAGES = {*RESULT_FIELD, "retrieval"}
+_ATTR = {**RESULT_FIELD, "retrieval": "retrieval"}
 
 
 class Orchestrator:
     def __init__(self, router: Router | None = None, retriever: Retriever | None = None):
         self.router = router or Router()
         self.retriever = retriever or Retriever()
-        self.planner = PlannerAgent(self.router)
-        self.framework = FrameworkAgent(self.router)
-        self.canvas = CanvasAnalysisAgent(self.router)
-        self.strategist = StrategistAgent(self.router)
-        self.roadmap = RoadmapAgent(self.router)
-        self.evaluator = EvaluatorAgent(self.router)
-        self.cache = DiskCache("pipeline")
-
-    def _retrieve(self, queries: list[str], k_per_query: int = 4) -> list[RetrievedPassage]:
-        seen = set()
-        merged: list[RetrievedPassage] = []
-        for q in queries:
-            for p in self.retriever.retrieve(q, k=k_per_query):
-                key = (p.chunk.chunk_id,)
-                if key in seen:
-                    continue
-                seen.add(key)
-                merged.append(p)
-        merged.sort(key=lambda p: -p.score)
-        return merged[: settings.top_k * 2]
+        self.graph = build_graph(self.router, self.retriever)
+        self.cache = DiskCache("pipeline_v2")  # v2: LangGraph orchestration + reworked prompts; old traces are not reused
 
     def run(self, business_case: str, *, run_evaluator: bool = True) -> PipelineTrace:
         """Drain the streaming run and return the final trace."""
@@ -138,80 +107,15 @@ class Orchestrator:
             return
 
         trace = PipelineTrace(business_case=business_case)
-
-        # 1. Planner
-        t = time.time()
-        trace.plan = self.planner.run(business_case=business_case)
-        trace.timings["planner"] = round(time.time() - t, 2)
-        trace.model_per_stage["planner"] = trace.plan.model
-        yield "planner", trace
-
-        plan_obj = trace.plan.output if isinstance(trace.plan.output, dict) else {}
-        queries = plan_obj.get("retrieval_queries") or [business_case[:300]]
-
-        # 2. Retrieval
-        t = time.time()
-        trace.retrieval = self._retrieve(queries)
-        trace.timings["retrieval"] = round(time.time() - t, 2)
-        context = Retriever.format_context(trace.retrieval)
-        yield "retrieval", trace
-
-        # 3. Framework agent
-        t = time.time()
-        trace.framework = self.framework.run(
-            company_summary=plan_obj.get("company_summary", "")[:600],
-            context=context[:6000],
-        )
-        trace.timings["framework"] = round(time.time() - t, 2)
-        trace.model_per_stage["framework"] = trace.framework.model
-        yield "framework", trace
-
-        # 4. Canvas analysis
-        t = time.time()
-        trace.canvas = self.canvas.run(
-            company_summary=plan_obj.get("company_summary", "")[:600],
-            objectives=_as_text(plan_obj.get("objectives", [])),
-            constraints=_as_text(plan_obj.get("constraints", [])),
-            framework_insights=_as_text(trace.framework.output)[:4000],
-            context=context[:4000],
-        )
-        trace.timings["canvas"] = round(time.time() - t, 2)
-        trace.model_per_stage["canvas"] = trace.canvas.model
-        yield "canvas", trace
-
-        # 5. Strategist
-        t = time.time()
-        trace.strategy = self.strategist.run(
-            plan=_as_text(plan_obj)[:3000],
-            canvas=_as_text(trace.canvas.output)[:3000],
-            framework_insights=_as_text(trace.framework.output)[:3000],
-        )
-        trace.timings["strategist"] = round(time.time() - t, 2)
-        trace.model_per_stage["strategist"] = trace.strategy.model
-        yield "strategist", trace
-
-        # 6. Roadmap
-        t = time.time()
-        trace.roadmap = self.roadmap.run(
-            strategy=_as_text(trace.strategy.output)[:4000],
-            canvas=_as_text(trace.canvas.output)[:3000],
-        )
-        trace.timings["roadmap"] = round(time.time() - t, 2)
-        trace.model_per_stage["roadmap"] = trace.roadmap.model
-        yield "roadmap", trace
-
-        # 7. Evaluator (optional, conditional execution)
-        if run_evaluator:
-            t = time.time()
-            trace.evaluation = self.evaluator.run(
-                business_case=business_case[:2000],
-                plan=_as_text(plan_obj)[:2000],
-                strategy=_as_text(trace.strategy.output)[:2000],
-                roadmap=_as_text(trace.roadmap.output)[:4000],
-            )
-            trace.timings["evaluator"] = round(time.time() - t, 2)
-            trace.model_per_stage["evaluator"] = trace.evaluation.model
-            yield "evaluator", trace
+        inputs = {"business_case": business_case, "run_evaluator": run_evaluator}
+        for update in self.graph.stream(inputs, stream_mode="updates"):
+            for node, delta in update.items():
+                if node not in _STAGES or not delta or _ATTR[node] not in delta:
+                    continue  # join node, or an agent that is being retried
+                setattr(trace, _ATTR[node], delta[_ATTR[node]])
+                trace.timings.update(delta.get("timings", {}))
+                trace.model_per_stage.update(delta.get("model_per_stage", {}))
+                yield node, trace
 
         agents = [trace.plan, trace.framework, trace.canvas, trace.strategy, trace.roadmap, trace.evaluation]
         unparsed = [a.name for a in agents if a is not None and not isinstance(a.output, (dict, list))]

@@ -87,10 +87,7 @@ CANVAS_USER = """COMPANY SUMMARY:
 OBJECTIVES: {objectives}
 CONSTRAINTS: {constraints}
 
-FRAMEWORK INSIGHTS (from previous agent):
-{framework_insights}
-
-ADDITIONAL CONTEXT:
+REFERENCE CONTEXT:
 {context}
 
 For each of the 7 action fields, return STRICT JSON:

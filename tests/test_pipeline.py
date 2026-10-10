@@ -21,7 +21,10 @@ def test_full_run_in_demo_mode(orchestrator):
 
 def test_streaming_yields_every_stage_in_order(orchestrator):
     stages = [s for s, _ in orchestrator.run_streaming(CASE)]
-    assert stages == ["planner", "retrieval", "framework", "canvas", "strategist", "roadmap", "evaluator", "done"]
+    # framework and canvas run in parallel: either order
+    assert stages[:2] == ["planner", "retrieval"]
+    assert sorted(stages[2:4]) == ["canvas", "framework"]
+    assert stages[4:] == ["strategist", "roadmap", "evaluator", "done"]
 
 
 def test_without_evaluator(orchestrator):
