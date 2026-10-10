@@ -44,7 +44,9 @@ with st.sidebar:
     else:
         st.error("Vector index missing — run `python -m scripts.build_index`")
 
-    if settings.google_api_key:
+    if settings.demo_active:
+        st.warning("🎭 Demo mode — agents answer from a recorded fixture (no Gemini key)")
+    elif settings.google_api_key:
         st.success("Gemini API key detected")
     else:
         st.warning("No GOOGLE_API_KEY — running in MOCK mode")
@@ -105,7 +107,7 @@ st.graphviz_chart(
       bc -> pl -> rg -> fw -> cv -> st -> rm -> ev -> out;
     }
     """,
-    use_container_width=True,
+    width="stretch",
 )
 
 st.divider()

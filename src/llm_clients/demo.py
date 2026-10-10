@@ -1,0 +1,46 @@
+"""Offline demo client: answers each agent from a recorded fixture.
+
+Used when no GOOGLE_API_KEY is configured (DEMO_MODE=auto) or when forced with
+DEMO_MODE=on. Retrieval still runs for real; only the LLM calls are replaced.
+The fixture is written for the sample bikeshop case, so for any other input the
+agent outputs will still describe the bikeshop. The UI says so.
+"""
+from __future__ import annotations
+
+import json
+from functools import cache
+from pathlib import Path
+
+from src.agents import prompts
+from src.llm_clients.base import BaseLLMClient, LLMResponse
+from src.utils.config import settings
+
+# Agents are identified by their system prompt, which is unique per agent.
+_AGENT_BY_SYSTEM = {
+    prompts.PLANNER_SYSTEM: "planner",
+    prompts.FRAMEWORK_SYSTEM: "framework",
+    prompts.CANVAS_SYSTEM: "canvas",
+    prompts.STRATEGIST_SYSTEM: "strategist",
+    prompts.ROADMAP_SYSTEM: "roadmap",
+    prompts.EVALUATOR_SYSTEM: "evaluator",
+}
+
+
+@cache
+def load_fixture(path: Path) -> dict:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+class DemoLLMClient(BaseLLMClient):
+    def __init__(self, tier: str = "demo", fixture_path: Path | None = None):
+        self.name = f"demo-fixture-{tier}"
+        self.tier = tier
+        self.fixture_path = fixture_path or settings.demo_fixture
+
+    def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
+        agent = _AGENT_BY_SYSTEM.get(system or "")
+        fixture = load_fixture(self.fixture_path)
+        if agent is None or agent not in fixture:
+            raise KeyError(f"No demo fixture output for this prompt (agent={agent!r})")
+        return LLMResponse(text=json.dumps(fixture[agent]), model=self.name, tier=self.tier)

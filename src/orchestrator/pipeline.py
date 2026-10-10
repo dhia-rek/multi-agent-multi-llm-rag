@@ -125,7 +125,11 @@ class Orchestrator:
     def run_streaming(self, business_case: str, *, run_evaluator: bool = True):
         """Yield (stage_name, trace_so_far) after each stage completes.
         Lets the UI render progressively. Final yield is ('done', trace)."""
-        cache_key = {"business_case": business_case, "evaluator": run_evaluator}
+        cache_key = {
+            "business_case": business_case,
+            "evaluator": run_evaluator,
+            "models": self.router.signature(),
+        }
         cached = self.cache.get(cache_key)
         if cached is not None:
             log.info("Cache HIT for this business case — returning cached trace.")

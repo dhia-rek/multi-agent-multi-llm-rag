@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 
 from app.edu_content import AGENTS  # noqa: E402
 from src.orchestrator.pipeline import Orchestrator, PipelineTrace  # noqa: E402
+from src.utils.config import settings  # noqa: E402
 
 st.set_page_config(page_title="Run pipeline", page_icon="🚀", layout="wide")
 
@@ -136,6 +137,15 @@ default_text = (
     else "Our company wants to improve customer experience and reduce operational costs."
 )
 
+if settings.demo_active:
+    st.warning(
+        "**Demo mode** — no Gemini key is configured, so the six agents answer from a "
+        "hand-written fixture for the sample bikeshop case (retrieval still runs for real). "
+        "Other business cases will still show the bikeshop outputs. "
+        "Set `GOOGLE_API_KEY` to run live models.",
+        icon="🎭",
+    )
+
 business_case = st.text_area("📥 Business case", value=default_text, height=220)
 launch = st.button("▶ Run pipeline", type="primary")
 
@@ -193,17 +203,19 @@ if launch and business_case.strip():
                 )
                 import pandas as pd  # local import keeps the page boot cheap
 
+                results = {
+                    "planner": trace.plan,
+                    "framework": trace.framework,
+                    "canvas": trace.canvas,
+                    "strategist": trace.strategy,
+                    "roadmap": trace.roadmap,
+                    "evaluator": trace.evaluation,
+                }
                 rows = []
                 for stage_name, secs in trace.timings.items():
                     model = trace.model_per_stage.get(stage_name, "—")
-                    if stage_name == "retrieval":
-                        tier = "rag"
-                    elif "flash-lite" in model.lower() or "mock-fast" in model:
-                        tier = "fast"
-                    elif "flash" in model.lower() or "pro" in model.lower() or "mock-powerful" in model:
-                        tier = "powerful"
-                    else:
-                        tier = "—"
+                    result = results.get(stage_name)
+                    tier = "rag" if stage_name == "retrieval" else (result.tier if result else "—")
                     rows.append(
                         {
                             "stage": stage_name,
@@ -215,7 +227,7 @@ if launch and business_case.strip():
                 df = pd.DataFrame(rows)
                 c1, c2 = st.columns([2, 1])
                 with c1:
-                    st.dataframe(df, hide_index=True, use_container_width=True)
+                    st.dataframe(df, hide_index=True, width="stretch")
                 with c2:
                     st.bar_chart(df.set_index("stage")["seconds"])
 

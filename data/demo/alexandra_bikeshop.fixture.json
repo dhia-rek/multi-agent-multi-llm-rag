@@ -1,0 +1,336 @@
+{
+  "_note": "ILLUSTRATIVE FIXTURE — hand-written to match the agent output schemas for the sample case. Not a real LLM output. Replace with a captured Gemini trace (see README).",
+  "case": "alexandra_bikeshop",
+  "planner": {
+    "company_summary": "Alexandra's Bikeshop is a Swiss SME with two stores selling bicycles and offering repairs. Revenue has plateaued for two years while younger customers expect online configurators, home delivery and trade-in. Repair booking is still by phone and data is scattered across POS, Excel and paper.",
+    "why_transform": [
+      "Revenue plateau over the last two years",
+      "Younger customers expect digital services the shop lacks",
+      "Phone-based repair scheduling causes long lead times and unhappy customers",
+      "Future second-generation owner is digital-native"
+    ],
+    "stakes": [
+      "Losing e-bike commuters and families to online competitors",
+      "Repair workflow costs eroding margins",
+      "Business continuity through the generational handover"
+    ],
+    "objectives": [
+      "Improve customer experience across online and in-store touchpoints",
+      "Reach new segments (e-bike commuters, families)",
+      "Reduce repair workflow costs",
+      "Build a small but real digital marketing presence",
+      "Prepare the business for the next-generation owner"
+    ],
+    "constraints": [
+      "IT budget under CHF 60k for year 1",
+      "8 employees, none with deep digital skills",
+      "No in-house developers",
+      "Data scattered across POS, Excel and paper repair tickets"
+    ],
+    "transformation_drivers": ["customer_pressure", "competition", "performance", "market"],
+    "retrieval_queries": [
+      "digital transformation small retail SME customer experience",
+      "Digital Transformation Canvas customer centricity action field",
+      "process engineering service workflow digitization",
+      "cloud and data integration for SMEs low budget",
+      "change management digital skills small team"
+    ]
+  },
+  "framework": {
+    "why_principles": [
+      "Transformation is triggered by customer pressure and competition, not technology alone (Wade 2015)",
+      "A clear 'why' must be shared with staff before tools are selected"
+    ],
+    "what_to_transform": {
+      "customer_centricity": ["Offer online repair booking and order tracking", "Map customer journey across store and web"],
+      "new_technologies": ["Adopt off-the-shelf SaaS rather than custom development"],
+      "cloud_and_data": ["Consolidate POS, Excel and paper tickets into one cloud data source"],
+      "digital_business_development": ["Add trade-in, home delivery and e-bike commuter bundles"],
+      "process_engineering": ["Digitize the repair ticket workflow end to end"],
+      "digital_leadership_culture": ["Train staff and name a digital champion in each store"],
+      "digital_marketing": ["Run local search, Instagram and email campaigns for new segments"]
+    },
+    "how_to_transform": [
+      "Assess current maturity per action field before selecting initiatives",
+      "Sequence quick wins first to build momentum and trust",
+      "Review KPIs quarterly and adjust the roadmap"
+    ],
+    "operational_pillars": {
+      "process": ["Standardized online repair intake and status updates"],
+      "people": ["Digital basics training for all 8 employees"],
+      "platform": ["Shopify extended with booking, plus a lightweight repair/CRM tool"],
+      "partners": ["Local agency or freelancer for web and marketing support", "Delivery and trade-in partners"]
+    },
+    "value_and_pitfalls": {
+      "expected_value": ["Higher repair throughput", "New online revenue streams", "Better customer retention"],
+      "pitfalls": ["Buying tools without process change", "Overloading staff with no digital skills", "Overspending the CHF 60k budget"]
+    }
+  },
+  "canvas": {
+    "fields": [
+      {
+        "name": "Customer Centricity",
+        "current_state": "Customers interact in two stores and a basic Shopify site. No online booking, configurator or order tracking.",
+        "maturity_score": 2,
+        "gaps": ["No online repair booking", "No unified customer view"],
+        "opportunities": ["Self-service booking and status notifications"]
+      },
+      {
+        "name": "New Technologies",
+        "current_state": "Shopify and a POS are used; no automation or modern tooling beyond that.",
+        "maturity_score": 2,
+        "gaps": ["No product configurator", "No automation of routine tasks"],
+        "opportunities": ["Shopify apps for configurator and booking at low cost"]
+      },
+      {
+        "name": "Cloud & Data",
+        "current_state": "Data is spread across POS, Excel files and paper repair tickets.",
+        "maturity_score": 1,
+        "gaps": ["No single source of truth", "No reporting on repairs or sales"],
+        "opportunities": ["Cloud repair-ticket and CRM tool integrated with Shopify"]
+      },
+      {
+        "name": "Digital Business Development",
+        "current_state": "Revenue comes from bike sales and repairs only; no trade-in or delivery offer.",
+        "maturity_score": 2,
+        "gaps": ["No trade-in or home delivery", "No offer tailored to e-bike commuters or families"],
+        "opportunities": ["Trade-in programme, delivery, commuter and family bundles"]
+      },
+      {
+        "name": "Process Engineering",
+        "current_state": "Repair scheduling is by phone with paper tickets, creating long lead times.",
+        "maturity_score": 1,
+        "gaps": ["Manual scheduling", "No visibility on repair queue"],
+        "opportunities": ["Digital repair workflow cutting handling time and phone load"]
+      },
+      {
+        "name": "Digital Leadership & Culture",
+        "current_state": "Owner is motivated but staff have limited digital skills and no digital lead.",
+        "maturity_score": 2,
+        "gaps": ["No digital skills", "No owner for digital topics"],
+        "opportunities": ["Digital champions and short practical training; involve the next-generation owner"]
+      },
+      {
+        "name": "Digital Marketing",
+        "current_state": "A small Instagram following and a basic website, with no structured campaigns.",
+        "maturity_score": 2,
+        "gaps": ["No content plan", "No tracking of campaign results"],
+        "opportunities": ["Local SEO, Instagram content and email to reach commuters and families"]
+      }
+    ],
+    "overall_maturity": 2,
+    "priority_fields": ["Process Engineering", "Customer Centricity", "Cloud & Data"]
+  },
+  "strategist": {
+    "strategic_purpose": "Become the most convenient local bike shop for commuters and families by digitizing repairs and the customer journey within a CHF 60k budget.",
+    "operational_pillars": {
+      "process": "Replace phone and paper repair handling with a digital booking-to-pickup workflow",
+      "people": "Train all 8 staff and appoint one digital champion per store",
+      "platform": "Extend Shopify and add one cloud repair/CRM tool; no custom development",
+      "partners": "Contract a freelancer or agency for setup and marketing, plus delivery partners"
+    },
+    "expected_value": [
+      "Repair lead time reduced by about 30%",
+      "10-15% online revenue share by month 18",
+      "Phone booking calls cut by at least half"
+    ],
+    "risks": [
+      "Staff resistance or lack of skills slows adoption",
+      "Budget overrun on tool licences and integration",
+      "Dependence on a single freelancer or vendor"
+    ],
+    "quick_wins": [
+      "Online repair booking form on Shopify",
+      "Google Business profile and local SEO clean-up",
+      "SMS/email repair-ready notifications"
+    ],
+    "strategic_initiatives": [
+      {
+        "name": "Digital repair workflow",
+        "rationale": "Phone scheduling is the top pain point and drives cost and dissatisfaction (How: process change)",
+        "framework_anchor": "Process Engineering",
+        "impact": "high",
+        "effort": "medium"
+      },
+      {
+        "name": "Unified customer and sales data",
+        "rationale": "Scattered data blocks insight and personalization (What: data)",
+        "framework_anchor": "Cloud & Data",
+        "impact": "high",
+        "effort": "medium"
+      },
+      {
+        "name": "E-bike commuter and family offer",
+        "rationale": "New segments need trade-in, delivery and configurator (What: new business)",
+        "framework_anchor": "Digital Business Development",
+        "impact": "high",
+        "effort": "high"
+      },
+      {
+        "name": "Digital marketing basics",
+        "rationale": "Reach new segments cost-effectively (What: customer and marketing)",
+        "framework_anchor": "Digital Marketing",
+        "impact": "medium",
+        "effort": "low"
+      }
+    ]
+  },
+  "roadmap": {
+    "horizon_months": 18,
+    "phases": [
+      {
+        "name": "Phase 1 — Foundations (months 1-3)",
+        "objectives": ["Align the team on the why", "Launch visible quick wins"],
+        "initiatives": [
+          {
+            "name": "Online repair booking",
+            "owner": "Store manager",
+            "kpis": ["Share of repairs booked online", "Phone calls per week"],
+            "milestones": ["Tool selected", "Booking form live on Shopify"],
+            "duration_weeks": 6,
+            "budget_estimate": "low",
+            "framework_anchor": "Process Engineering",
+            "dependencies": []
+          },
+          {
+            "name": "Staff digital basics training",
+            "owner": "Owner",
+            "kpis": ["Staff trained", "Digital champions named"],
+            "milestones": ["Training plan agreed", "Two sessions delivered"],
+            "duration_weeks": 8,
+            "budget_estimate": "low",
+            "framework_anchor": "Digital Leadership & Culture",
+            "dependencies": []
+          }
+        ]
+      },
+      {
+        "name": "Phase 2 — Core Digitization (months 4-8)",
+        "objectives": ["Consolidate data", "Digitize the repair workflow"],
+        "initiatives": [
+          {
+            "name": "Cloud repair ticket and CRM tool",
+            "owner": "Digital champion (workshop)",
+            "kpis": ["Paper tickets eliminated", "Average repair lead time"],
+            "milestones": ["Data migrated from Excel", "Paper tickets retired"],
+            "duration_weeks": 12,
+            "budget_estimate": "medium",
+            "framework_anchor": "Cloud & Data",
+            "dependencies": ["Online repair booking"]
+          },
+          {
+            "name": "Customer notifications and tracking",
+            "owner": "Store manager",
+            "kpis": ["Customer satisfaction score", "Status enquiry calls"],
+            "milestones": ["SMS/email templates live"],
+            "duration_weeks": 6,
+            "budget_estimate": "low",
+            "framework_anchor": "Customer Centricity",
+            "dependencies": ["Cloud repair ticket and CRM tool"]
+          }
+        ]
+      },
+      {
+        "name": "Phase 3 — Growth (months 9-14)",
+        "objectives": ["Reach e-bike commuters and families", "Start structured marketing"],
+        "initiatives": [
+          {
+            "name": "Trade-in and home delivery offer",
+            "owner": "Owner",
+            "kpis": ["Trade-ins per month", "Delivery orders"],
+            "milestones": ["Trade-in pricing grid", "Delivery partner signed"],
+            "duration_weeks": 10,
+            "budget_estimate": "medium",
+            "framework_anchor": "Digital Business Development",
+            "dependencies": ["Cloud repair ticket and CRM tool"]
+          },
+          {
+            "name": "Local digital marketing programme",
+            "owner": "Marketing freelancer / owner",
+            "kpis": ["Website visits", "Instagram followers", "Online leads"],
+            "milestones": ["Content calendar", "First commuter campaign"],
+            "duration_weeks": 12,
+            "budget_estimate": "low",
+            "framework_anchor": "Digital Marketing",
+            "dependencies": []
+          },
+          {
+            "name": "Product configurator on Shopify",
+            "owner": "Freelancer",
+            "kpis": ["Configurator conversion rate"],
+            "milestones": ["E-bike configurator live"],
+            "duration_weeks": 8,
+            "budget_estimate": "medium",
+            "framework_anchor": "New Technologies",
+            "dependencies": ["Unified customer and sales data"]
+          }
+        ]
+      },
+      {
+        "name": "Phase 4 — Optimize and Handover (months 15-18)",
+        "objectives": ["Measure results", "Prepare next-generation ownership"],
+        "initiatives": [
+          {
+            "name": "KPI dashboard and quarterly review",
+            "owner": "Owner and next-generation owner",
+            "kpis": ["Dashboard adoption", "Roadmap items reviewed on schedule"],
+            "milestones": ["Dashboard live", "Year-2 roadmap agreed"],
+            "duration_weeks": 8,
+            "budget_estimate": "low",
+            "framework_anchor": "How: continuous optimization",
+            "dependencies": ["Cloud repair ticket and CRM tool"]
+          },
+          {
+            "name": "Digital handover plan",
+            "owner": "Owner",
+            "kpis": ["Processes documented", "Successor involved in decisions"],
+            "milestones": ["Documentation complete"],
+            "duration_weeks": 6,
+            "budget_estimate": "low",
+            "framework_anchor": "Digital Leadership & Culture",
+            "dependencies": []
+          }
+        ]
+      }
+    ],
+    "kpi_summary": [
+      "Repair lead time reduced by 30%",
+      "Online revenue share of 10-15%",
+      "Share of repairs booked online above 60%",
+      "Customer satisfaction score +15%",
+      "Total IT spend within CHF 60k in year 1"
+    ]
+  },
+  "evaluator": {
+    "consistency_check": [
+      "Initiatives map to the owner's five objectives",
+      "Phasing respects dependencies (booking before CRM, CRM before trade-in)",
+      "Budget labels are plausible for a CHF 60k limit but not summed"
+    ],
+    "framework_coverage": {
+      "why_what_how": "covered",
+      "seven_action_fields": "covered",
+      "operational_pillars": "partial"
+    },
+    "weaknesses": [
+      "No explicit CHF budget per initiative",
+      "Partner roles are vague beyond one freelancer",
+      "Change management relies heavily on the owner's time"
+    ],
+    "missing_elements": [
+      "Data protection (Swiss FADP) considerations for customer data",
+      "Baseline measurements for the KPIs"
+    ],
+    "risks_underestimated": [
+      "Staff adoption with no digital skills",
+      "Effort to migrate Excel and paper data cleanly"
+    ],
+    "overall_score": 7,
+    "recommendations": [
+      "Add a CHF budget table and a 15% contingency",
+      "Capture baseline repair lead time and online share in month 1",
+      "Define a vendor-exit plan for the freelancer and key SaaS tools",
+      "Add a data protection review before the CRM goes live"
+    ]
+  }
+}

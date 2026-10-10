@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from src.llm_clients.base import BaseLLMClient
+from src.llm_clients.demo import DemoLLMClient
 from src.llm_clients.gemini import GeminiClient
 from src.llm_clients.mock import MockLLMClient
 from src.llm_clients.ollama import OllamaClient
@@ -43,15 +44,34 @@ class Router:
         self._fast: BaseLLMClient | None = None
         self._powerful: BaseLLMClient | None = None
         self._local: BaseLLMClient | None = None
-        self._has_gemini = bool(settings.google_api_key)
+        self.demo = settings.demo_active
+        self._has_gemini = bool(settings.google_api_key) and not self.demo
         self._has_ollama = bool(settings.ollama_model)
         # Tiers that hit a permanent (daily) quota cap during this run.
         self._dead_tiers: set[str] = set()
-        if not self._has_gemini:
+        if self.demo:
+            log.warning("DEMO MODE — agents answer from a recorded fixture, not a live LLM.")
+        elif not self._has_gemini:
             log.warning(
                 "GOOGLE_API_KEY missing — falling back to MockLLMClient. "
                 "Set the key in .env for real generations."
             )
+
+    def _offline_client(self, tier: str) -> BaseLLMClient:
+        if self.demo:
+            return DemoLLMClient(tier=tier)
+        return MockLLMClient(tier=tier)
+
+    def signature(self) -> dict:
+        """What would answer each tier — part of the pipeline cache key, so a demo
+        or mock run is never served back once a real key is configured."""
+        if self.demo:
+            return {"mode": "demo"}
+        return {
+            "fast": settings.gemini_fast_model if self._has_gemini else "mock",
+            "powerful": settings.gemini_powerful_model if self._has_gemini else "mock",
+            "local": settings.ollama_model,
+        }
 
     def mark_exhausted(self, tier: str) -> None:
         """Called by callers when a tier returns a daily-quota error.
@@ -71,7 +91,7 @@ class Router:
             self._fast = (
                 GeminiClient(settings.gemini_fast_model, tier="fast")
                 if self._has_gemini and "fast" not in self._dead_tiers
-                else MockLLMClient(tier="fast")
+                else self._offline_client("fast")
             )
         return self._fast
 
@@ -80,7 +100,7 @@ class Router:
             self._powerful = (
                 GeminiClient(settings.gemini_powerful_model, tier="powerful")
                 if self._has_gemini and "powerful" not in self._dead_tiers
-                else MockLLMClient(tier="powerful")
+                else self._offline_client("powerful")
             )
         return self._powerful
 
