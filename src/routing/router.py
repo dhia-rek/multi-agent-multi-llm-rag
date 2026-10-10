@@ -73,6 +73,12 @@ class Router:
             "local": settings.ollama_model,
         }
 
+    @property
+    def fallback_used(self) -> bool:
+        """True once any tier has been swapped for a mock after a daily-quota error.
+        signature() can't reflect this, so such runs must not be cached."""
+        return bool(self._dead_tiers)
+
     def mark_exhausted(self, tier: str) -> None:
         """Called by callers when a tier returns a daily-quota error.
         We swap that tier's client for a Mock so the pipeline still completes."""

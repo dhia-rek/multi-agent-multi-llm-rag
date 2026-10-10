@@ -66,8 +66,8 @@ def test_per_minute_429_sleeps_then_gives_up_after_retries(monkeypatch, no_sleep
     with pytest.raises(gemini.RateLimitedError):
         client._call("hi", None)
     assert client._client.models.calls == 3
-    # `time` is a shared module, so tenacity's backoff sleeps are captured too
-    assert no_sleep.count(7.0) == 3
+    # one server-suggested sleep per attempt, no extra tenacity backoff
+    assert [s for s in no_sleep if s] == [7.0, 7.0, 7.0]  # tenacity sleeps 0 between
 
 
 def test_other_client_errors_propagate(monkeypatch, no_sleep):

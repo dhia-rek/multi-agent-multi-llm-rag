@@ -19,7 +19,6 @@ from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential,
 )
 
 from src.llm_clients.base import BaseLLMClient, LLMResponse, QuotaExhaustedError
@@ -52,7 +51,7 @@ class GeminiClient(BaseLLMClient):
 
     @retry(
         stop=stop_after_attempt(3),
-        wait=wait_exponential(min=2, max=10),
+        # No tenacity wait: _call already sleeps the server-suggested delay.
         retry=retry_if_exception_type(RateLimitedError),
         reraise=True,
     )

@@ -37,6 +37,13 @@ def test_second_run_hits_cache(orchestrator):
     assert orchestrator.run(CASE).as_dict() == first.as_dict()
 
 
+def test_run_with_quota_fallback_is_not_cached(orchestrator):
+    orchestrator.router.mark_exhausted("powerful")
+    orchestrator.run(CASE)
+    stages = [s for s, _ in orchestrator.run_streaming(CASE)]
+    assert stages[0] == "planner"
+
+
 def test_evaluator_flag_is_part_of_cache_key(orchestrator):
     orchestrator.run(CASE, run_evaluator=False)
     stages = [s for s, _ in orchestrator.run_streaming(CASE, run_evaluator=True)]

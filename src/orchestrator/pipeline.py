@@ -213,5 +213,8 @@ class Orchestrator:
             trace.model_per_stage["evaluator"] = trace.evaluation.model
             yield "evaluator", trace
 
-        self.cache.set(cache_key, trace)
+        if self.router.fallback_used:
+            log.warning("A tier fell back to mock during this run; not caching the trace.")
+        else:
+            self.cache.set(cache_key, trace)
         yield "done", trace
