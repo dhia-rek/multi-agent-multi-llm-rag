@@ -70,6 +70,7 @@ class Router:
         return {
             "fast": settings.gemini_fast_model if self._has_gemini else "mock",
             "powerful": settings.gemini_powerful_model if self._has_gemini else "mock",
+            "thinking_budget": settings.gemini_thinking_budget if self._has_gemini else None,
             "local": settings.ollama_model,
         }
 

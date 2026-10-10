@@ -22,6 +22,10 @@ class Settings:
     google_api_key: str | None = os.getenv("GOOGLE_API_KEY") or None
     gemini_fast_model: str = os.getenv("GEMINI_FAST_MODEL", "gemini-2.5-flash-lite")
     gemini_powerful_model: str = os.getenv("GEMINI_POWERFUL_MODEL", "gemini-2.5-flash")
+    # Gemini 2.5 thinking tokens count against max_output_tokens. Unbounded, they
+    # ate ~1960 of 2048 and truncated every powerful-tier JSON. The powerful tier
+    # gets this budget on top of the answer budget; the fast tier doesn't think.
+    gemini_thinking_budget: int = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
 
     ollama_model: str | None = os.getenv("OLLAMA_MODEL") or None
     ollama_host: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")

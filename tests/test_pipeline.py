@@ -48,3 +48,14 @@ def test_evaluator_flag_is_part_of_cache_key(orchestrator):
     orchestrator.run(CASE, run_evaluator=False)
     stages = [s for s, _ in orchestrator.run_streaming(CASE, run_evaluator=True)]
     assert stages[0] == "planner"
+
+
+def test_run_with_unparsed_agent_is_not_cached(orchestrator, monkeypatch):
+    from src.llm_clients.base import LLMResponse
+
+    client = orchestrator.router.powerful()
+    monkeypatch.setattr(client, "generate", lambda *a, **k: LLMResponse('{"cut off', client.name, client.tier))
+    orchestrator.run(CASE)
+    monkeypatch.undo()
+    stages = [s for s, _ in orchestrator.run_streaming(CASE)]
+    assert stages[0] == "planner"

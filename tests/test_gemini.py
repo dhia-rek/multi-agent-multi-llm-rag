@@ -118,3 +118,19 @@ def test_missing_key_raises(monkeypatch):
     monkeypatch.setattr(gemini, "settings", make_settings(google_api_key=None))
     with pytest.raises(RuntimeError, match="GOOGLE_API_KEY"):
         gemini.GeminiClient("m", tier="fast")
+
+
+class _Ok:
+    text, candidates, usage_metadata = '{"ok": true}', None, None
+
+
+@pytest.mark.parametrize(("tier", "thinking"), [("fast", 0), ("powerful", 1024)])
+def test_thinking_budget_is_added_to_output_budget(monkeypatch, tier, thinking):
+    monkeypatch.setattr(gemini, "settings", make_settings(google_api_key="dummy", gemini_thinking_budget=1024))
+    client = gemini.GeminiClient("gemini-test", tier=tier)
+    seen = {}
+    monkeypatch.setattr(client, "_call", lambda prompt, cfg: seen.setdefault("cfg", cfg) and _Ok())
+    assert client.generate("hi", max_output_tokens=1000).text == '{"ok": true}'
+    cfg = seen["cfg"]
+    assert cfg.thinking_config.thinking_budget == thinking
+    assert cfg.max_output_tokens == 1000 + thinking

@@ -6,6 +6,9 @@ Behaviour
   suggests (30 s if it gives none, capped at 60 s), up to 3 attempts. The wait
   lives in tenacity only, so there is no double wait and no sleep after the
   last attempt.
+- Thinking: the powerful tier thinks with a capped budget
+  (GEMINI_THINKING_BUDGET), added on top of max_output_tokens so thinking can't
+  truncate the answer; the fast tier runs with thinking off.
 - Transient server errors (500/502/503/504, e.g. "model overloaded") get the
   same retry path with a fixed 10 s wait. The SDK itself doesn't retry.
 - Daily-quota errors raise instantly so the router can fail over to another tier
@@ -103,10 +106,12 @@ class GeminiClient(BaseLLMClient):
             raise RateLimitedError(msg, delay) from e
 
     def generate(self, prompt: str, system: str | None = None, **kwargs) -> LLMResponse:
+        thinking = settings.gemini_thinking_budget if self.tier == "powerful" else 0
         cfg = types.GenerateContentConfig(
             system_instruction=system,
             temperature=kwargs.get("temperature", 0.3),
-            max_output_tokens=kwargs.get("max_output_tokens", 2048),
+            max_output_tokens=kwargs.get("max_output_tokens", 4096) + thinking,
+            thinking_config=types.ThinkingConfig(thinking_budget=thinking),
         )
         resp = self._call(prompt, cfg)
         text = (resp.text or "").strip()

@@ -213,8 +213,12 @@ class Orchestrator:
             trace.model_per_stage["evaluator"] = trace.evaluation.model
             yield "evaluator", trace
 
+        agents = [trace.plan, trace.framework, trace.canvas, trace.strategy, trace.roadmap, trace.evaluation]
+        unparsed = [a.name for a in agents if a is not None and not isinstance(a.output, (dict, list))]
         if self.router.fallback_used:
             log.warning("A tier fell back to mock during this run; not caching the trace.")
+        elif unparsed:
+            log.warning("No valid JSON from %s; not caching the trace.", ", ".join(unparsed))
         else:
             self.cache.set(cache_key, trace)
         yield "done", trace
