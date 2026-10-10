@@ -10,7 +10,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
     HF_HOME=/app/.hf-cache \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PORT=7860
+    PORT=7860 \
+    STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
 
 COPY --chown=app pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project && chown -R app /app
