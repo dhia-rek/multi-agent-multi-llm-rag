@@ -6,7 +6,7 @@ Space card (`deploy/huggingface/README.md`).
 
 ## Steps
 
-1. Create a Space at https://huggingface.co/new-space — SDK **Docker**, hardware
+1. Create a Space at https://huggingface.co/new-space with SDK **Docker**, hardware
    **CPU basic** (free) is enough.
 2. Push this repo to the Space, replacing the root `README.md` with the Space card
    (Spaces read their config from the README front matter):
@@ -19,7 +19,7 @@ Space card (`deploy/huggingface/README.md`).
    git lfs install && git lfs track "*.pdf"   # the Hub rejects binary files outside LFS/Xet
    git add -A && git commit -m "Deploy" && git push
    ```
-3. Optional — live models: Space **Settings → Variables and secrets → New secret**
+3. Optional, for live models: Space **Settings → Variables and secrets → New secret**
    `GOOGLE_API_KEY`. Without it the Space stays in demo mode.
 
 ## Secrets and variables

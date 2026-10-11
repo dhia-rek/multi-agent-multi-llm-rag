@@ -1,5 +1,5 @@
 ---
-title: DT Roadmap — Multi-Agent RAG
+title: DT Roadmap · Multi-Agent RAG
 emoji: 🧭
 colorFrom: indigo
 colorTo: green
