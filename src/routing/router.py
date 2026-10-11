@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import threading
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from src.llm_clients.base import BaseLLMClient
 from src.llm_clients.demo import DemoLLMClient
@@ -35,6 +35,13 @@ Level = Literal["low", "medium", "high"]
 
 @dataclass
 class RoutingDecision:
+    """Outcome of `Router.decide`.
+
+    Attributes:
+        tier: Chosen tier ("fast", "powerful" or "local").
+        reason: Human-readable explanation, shown in the UI and logs.
+    """
+
     tier: str
     reason: str
 
@@ -42,7 +49,8 @@ class RoutingDecision:
 class Router:
     """Lazily instantiates one client per tier and serves them on demand."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Read settings to decide demo/Gemini/Ollama availability; creates no clients yet."""
         self._fast: BaseLLMClient | None = None
         self._powerful: BaseLLMClient | None = None
         self._local: BaseLLMClient | None = None
@@ -62,13 +70,17 @@ class Router:
             )
 
     def _offline_client(self, tier: str) -> BaseLLMClient:
+        """Demo client in demo mode, otherwise a mock, for a tier without a live LLM."""
         if self.demo:
             return DemoLLMClient(tier=tier)
         return MockLLMClient(tier=tier)
 
-    def signature(self) -> dict:
-        """What would answer each tier — part of the pipeline cache key, so a demo
-        or mock run is never served back once a real key is configured."""
+    def signature(self) -> dict[str, Any]:
+        """What would answer each tier.
+
+        Part of the pipeline cache key, so a demo or mock run is never served
+        back once a real key is configured.
+        """
         if self.demo:
             # Include the fixture contents so a re-recorded fixture isn't masked by cache.
             fixture = settings.demo_fixture
@@ -84,12 +96,16 @@ class Router:
     @property
     def fallback_used(self) -> bool:
         """True once any tier has been swapped for a mock after a daily-quota error.
-        signature() can't reflect this, so such runs must not be cached."""
+
+        signature() can't reflect this, so such runs must not be cached.
+        """
         return bool(self._dead_tiers)
 
     def mark_exhausted(self, tier: str) -> None:
         """Called by callers when a tier returns a daily-quota error.
-        We swap that tier's client for a Mock so the pipeline still completes."""
+
+        We swap that tier's client for a Mock so the pipeline still completes.
+        """
         with self._lock:
             if tier not in self._dead_tiers:
                 log.warning("Tier '%s' marked exhausted; falling back to mock.", tier)
@@ -102,6 +118,7 @@ class Router:
                 self._local = MockLLMClient(tier="local")
 
     def fast(self) -> BaseLLMClient:
+        """Client for the fast tier (Gemini, or demo/mock when offline or exhausted)."""
         with self._lock:
             if self._fast is None:
                 self._fast = (
@@ -112,6 +129,7 @@ class Router:
             return self._fast
 
     def powerful(self) -> BaseLLMClient:
+        """Client for the powerful tier (Gemini, or demo/mock when offline or exhausted)."""
         with self._lock:
             if self._powerful is None:
                 self._powerful = (
@@ -122,6 +140,7 @@ class Router:
             return self._powerful
 
     def local(self) -> BaseLLMClient | None:
+        """Ollama client, or None when OLLAMA_MODEL is not configured."""
         if not self._has_ollama:
             return None
         with self._lock:
@@ -135,6 +154,16 @@ class Router:
         complexity: Level = "medium",
         criticality: Level = "medium",
     ) -> RoutingDecision:
+        """Pick a tier from task type, complexity and criticality (no client is created).
+
+        Args:
+            task_type: Kind of work; reasoning, generation and evaluation go to powerful.
+            complexity: "high" forces the powerful tier.
+            criticality: "high" forces powerful; "low" prefers local if available.
+
+        Returns:
+            The chosen tier and the reason.
+        """
         # Critical or complex strategy/generation/eval → powerful
         if task_type in {"reasoning", "generation", "evaluation"} or complexity == "high" or criticality == "high":
             return RoutingDecision(
@@ -158,6 +187,17 @@ class Router:
         complexity: Level = "medium",
         criticality: Level = "medium",
     ) -> tuple[BaseLLMClient, RoutingDecision]:
+        """Decide a tier and return its client.
+
+        Args:
+            task_type: See `decide`.
+            complexity: See `decide`.
+            criticality: See `decide`.
+
+        Returns:
+            The client and the decision; a local decision falls back to the
+            fast client if Ollama is unavailable.
+        """
         decision = self.decide(task_type, complexity, criticality)
         if decision.tier == "fast":
             client = self.fast()

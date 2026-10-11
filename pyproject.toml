@@ -31,6 +31,10 @@ dev = [
     "pytest>=8",
     "httpx>=0.27",
     "ruff>=0.6",
+    "interrogate>=1.7",
+    "mypy>=1.10",
+    "pandas-stubs",
+    "types-requests",
 ]
 
 # Not an installable package: modules are imported from the repo root (src.*, app.*, api.*).
@@ -55,6 +59,33 @@ target-version = "py310"
 extend-exclude = [".venv*"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "W", "I", "UP", "B", "D"]
 # Long lines are prompt text and UI copy; leave them readable.
-ignore = ["E501"]
+ignore = [
+    "E501",
+    "D100", "D104",  # package __init__ and module docstrings are enforced by interrogate
+    "D203", "D213",  # conflict with the chosen google convention
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.interrogate]
+ignore-init-module = true
+ignore-magic = true
+ignore-semiprivate = true
+fail-under = 90
+exclude = ["tests", ".venv", ".agent-scratch", "vector_store", "data"]
+verbose = 1
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src", "api", "app", "scripts"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+explicit_package_bases = true
+mypy_path = "."
+exclude = ["tests/"]

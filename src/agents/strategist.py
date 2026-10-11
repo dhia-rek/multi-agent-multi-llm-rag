@@ -6,6 +6,8 @@ from src.agents.prompts import STRATEGIST_SYSTEM, STRATEGIST_USER
 
 
 class StrategistAgent(BaseAgent):
+    """Agent that synthesizes purpose, pillars, value, risks and initiatives from plan, canvas and framework insights."""
+
     name = "strategist"
     task_type = "reasoning"
     complexity = "high"

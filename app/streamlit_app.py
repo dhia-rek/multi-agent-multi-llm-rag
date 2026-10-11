@@ -10,6 +10,7 @@ from pathlib import Path
 
 import streamlit as st
 
+# Streamlit reruns this whole script on every interaction; module-level code is the UI.
 # Make `src.*` and `app.*` importable when launched via `streamlit run`.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -28,6 +29,11 @@ st.set_page_config(
 
 @st.cache_data(show_spinner=False)
 def index_info() -> dict:
+    """Vector index metadata (chunk count, dim, frameworks); empty if no index exists.
+
+    Cached across reruns and sessions, so a freshly built index appears only
+    after the cache is cleared or the app restarts.
+    """
     return FaissStore(settings.index_dir).info()
 
 
@@ -88,7 +94,8 @@ st.divider()
 st.subheader("🔁 The pipeline")
 st.markdown(
     "Here's exactly what runs every time you click **Run pipeline**. "
-    "Each stage produces a structured JSON object that the next stage reads."
+    "Framework and Canvas Analysis run in parallel after retrieval; their outputs "
+    "meet before Strategist. The final Evaluator is optional."
 )
 st.graphviz_chart(
     """
@@ -104,7 +111,14 @@ st.graphviz_chart(
       rm [label="6. Roadmap\\n(powerful)"];
       ev [label="7. Evaluator\\n(powerful, optional)", fillcolor="#fde2e2"];
       out [label="Structured roadmap\\n(JSON)", fillcolor="#fff3cd"];
-      bc -> pl -> rg -> fw -> cv -> st -> rm -> ev -> out;
+      bc -> pl -> rg;
+      rg -> fw;
+      rg -> cv;
+      fw -> st;
+      cv -> st;
+      st -> rm;
+      rm -> ev -> out;
+      rm -> out;
     }
     """,
     width="stretch",

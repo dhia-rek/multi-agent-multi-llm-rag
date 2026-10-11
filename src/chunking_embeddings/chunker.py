@@ -10,6 +10,17 @@ from src.data_ingestion.loader import RawDocument, iter_pages
 
 @dataclass
 class Chunk:
+    """A text window from one PDF page, with provenance for citation.
+
+    Attributes:
+        chunk_id: Sequential id like ``c00012``.
+        text: Chunk text.
+        source: Path of the source PDF.
+        framework: Corpus subfolder name.
+        title: PDF filename without extension.
+        page: 1-based page number.
+    """
+
     chunk_id: str
     text: str
     source: str
@@ -46,7 +57,19 @@ def _split_paragraphs(text: str, max_len: int) -> list[str]:
 def chunk_documents(
     docs: Iterable[RawDocument], chunk_size: int = 900, overlap: int = 150
 ) -> list[Chunk]:
-    """Group paragraphs into ~chunk_size character windows with overlap."""
+    """Group paragraphs into ~chunk_size character windows with overlap.
+
+    Chunks never span pages. Overlap is the last ``overlap`` characters of the previous
+    chunk, prepended to the next paragraph, so a chunk can slightly exceed ``chunk_size``.
+
+    Args:
+        docs: Documents to chunk.
+        chunk_size: Target maximum characters per chunk.
+        overlap: Characters carried over between consecutive chunks (0 disables).
+
+    Returns:
+        Chunks with ids numbered sequentially across all documents.
+    """
     chunks: list[Chunk] = []
     counter = 0
 
@@ -73,6 +96,7 @@ def chunk_documents(
 
 
 def _make_chunk(idx: int, text: str, doc: RawDocument, page: int) -> Chunk:
+    """Build a Chunk with id ``c{idx:05d}`` and provenance copied from ``doc``."""
     return Chunk(
         chunk_id=f"c{idx:05d}",
         text=text,

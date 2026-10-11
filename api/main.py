@@ -43,7 +43,17 @@ app = FastAPI(
 _orchestrator: Orchestrator | None = None
 
 
+def _require_index() -> None:
+    """Return HTTP 503 when the saved FAISS index is absent."""
+    if not (settings.index_dir / "faiss.index").exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Vector index not found. Run `python -m scripts.build_index` first.",
+        )
+
+
 def get_orchestrator() -> Orchestrator:
+    """Return the process-wide Orchestrator, creating it on first use (not thread-safe)."""
     global _orchestrator
     if _orchestrator is None:
         log.info("Bootstrapping Orchestrator (first request)...")
@@ -53,6 +63,8 @@ def get_orchestrator() -> Orchestrator:
 
 # ─── Request / response models ────────────────────────────────────────────────
 class BusinessCaseIn(BaseModel):
+    """Request body for /analyze and /generate-roadmap."""
+
     business_case: str = Field(
         ...,
         min_length=20,
@@ -65,6 +77,8 @@ class BusinessCaseIn(BaseModel):
 
 
 class HealthOut(BaseModel):
+    """Response of /health: liveness plus which models and index are configured."""
+
     status: str
     gemini_configured: bool
     demo_mode: bool
@@ -75,6 +89,8 @@ class HealthOut(BaseModel):
 
 
 class PipelineInfoOut(BaseModel):
+    """Response of /pipeline-info: active model and retrieval settings."""
+
     fast_model: str
     powerful_model: str
     local_model: str | None
@@ -120,12 +136,18 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
 
     Returns the canvas maturity grading plus the retrieval trace — useful as
     a quick diagnostic before generating the full roadmap.
+
+    Args:
+        payload: Business case (`run_evaluator` is ignored; the evaluator never runs here).
+
+    Returns:
+        Plan, retrieval summary, framework and canvas outputs, models used,
+        timings and demo-mode flag.
+
+    Raises:
+        HTTPException: 503 if the vector index has not been built.
     """
-    if not (settings.index_dir / "faiss.index").exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Vector index not found. Run `python -m scripts.build_index` first.",
-        )
+    _require_index()
 
     orch = get_orchestrator()
     trace = None
@@ -134,6 +156,7 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
         if stage == "cached" or (trace.framework is not None and trace.canvas is not None):
             break
 
+    assert trace is not None  # run_streaming always yields at least once
     return {
         "plan": trace.plan.output if trace.plan else None,
         "retrieval": [
@@ -155,12 +178,18 @@ def analyze(payload: BusinessCaseIn) -> dict[str, Any]:
 
 @app.post("/generate-roadmap", tags=["pipeline"])
 def generate_roadmap(payload: BusinessCaseIn) -> dict[str, Any]:
-    """Run the full pipeline and return the structured roadmap (FR6) + optional evaluation (FR7)."""
-    if not (settings.index_dir / "faiss.index").exists():
-        raise HTTPException(
-            status_code=503,
-            detail="Vector index not found. Run `python -m scripts.build_index` first.",
-        )
+    """Run the full pipeline and return the structured roadmap (FR6) + optional evaluation (FR7).
+
+    Args:
+        payload: Business case and whether to run the evaluator.
+
+    Returns:
+        The full trace as a dict plus the demo-mode flag.
+
+    Raises:
+        HTTPException: 503 if the vector index is missing; 500 if the pipeline fails.
+    """
+    _require_index()
 
     orch = get_orchestrator()
     try:

@@ -48,15 +48,22 @@ CANVAS_FIELDS = [
 
 
 def load_cases(path: Path = CASES_PATH) -> list[dict]:
+    """Read evaluation cases from a JSON-lines file, skipping blank lines."""
     with open(path, encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
 
 
 def _norm(text: str) -> str:
+    """Lowercase, map "&" to "and" and collapse whitespace for lexical matching."""
     return " ".join(text.lower().replace("&", "and").split())
 
 
 def case_metrics(passages: list[RetrievedPassage]) -> dict:
+    """Source diversity and example-roadmap share of one retrieval result.
+
+    Returns:
+        `sources` (distinct non-example paper titles) and `example_share` (0 if empty).
+    """
     return {
         "sources": len({p.chunk.title for p in passages if p.chunk.framework != EXAMPLE_SET}),
         "example_share": (
@@ -66,8 +73,13 @@ def case_metrics(passages: list[RetrievedPassage]) -> dict:
 
 
 def embedder_coverage(retriever: Retriever) -> float:
+    """Share of corpus tokens that fit in the embedding model's window.
+
+    Tokens past max_seq_length are silently truncated by the model, so this
+    measures how much chunk text is actually embedded.
+    """
     model = retriever.embedder.model
-    window = model.max_seq_length - 2  # [CLS] and [SEP]
+    window = (model.max_seq_length or 0) - 2  # [CLS] and [SEP]
     total = visible = 0
     for chunk in retriever.store.chunks:
         n = len(model.tokenizer(chunk.text, add_special_tokens=False)["input_ids"])
@@ -77,6 +89,15 @@ def embedder_coverage(retriever: Retriever) -> float:
 
 
 def field_query_precision(retriever: Retriever, k: int = 3) -> float:
+    """Lexical precision@k over the seven Canvas fields.
+
+    Args:
+        retriever: Retriever to query.
+        k: Passages per field query.
+
+    Returns:
+        Share of retrieved passages whose text contains the field name.
+    """
     hits = 0
     for field in CANVAS_FIELDS:
         passages = retriever.retrieve(f"How should an SME approach {field} in its digital transformation?", k=k)
@@ -85,6 +106,15 @@ def field_query_precision(retriever: Retriever, k: int = 3) -> float:
 
 
 def run_offline(cases: list[dict], k: int) -> dict:
+    """Index-level and per-case retrieval metrics; needs no API key.
+
+    Args:
+        cases: Evaluation cases (uses `id` and `business_case`).
+        k: Passages retrieved per case.
+
+    Returns:
+        Dict with k, n_chunks, embedder_coverage, field_query_p_at_3 and per-case rows.
+    """
     retriever = Retriever()
     retriever.retrieve("warm-up")  # load the embedding model outside the timings
     rows = []
@@ -103,6 +133,15 @@ def run_offline(cases: list[dict], k: int) -> dict:
 
 
 def run_live(cases: list[dict]) -> list[dict]:
+    """Run the full pipeline per case.
+
+    Args:
+        cases: Evaluation cases (uses `id`, `business_case`, `expected_fields`).
+
+    Returns:
+        One row per case; on a daily-quota fallback this and all remaining
+        cases become `{"id": ..., "quota": True}` rows.
+    """
     from src.orchestrator.pipeline import Orchestrator
 
     orch = Orchestrator()
@@ -118,10 +157,10 @@ def run_live(cases: list[dict]) -> list[dict]:
         secs = sum(trace.timings.values())
         agents = [trace.plan, trace.framework, trace.canvas, trace.strategy, trace.roadmap, trace.evaluation]
         parsed = sum(isinstance(a.output, dict) for a in agents if a)
-        canvas = trace.canvas.output if isinstance(trace.canvas.output, dict) else {}
+        canvas = trace.canvas.output if trace.canvas and isinstance(trace.canvas.output, dict) else {}
         priority = {_norm(f) for f in canvas.get("priority_fields", [])}
         expected = {_norm(f) for f in case["expected_fields"]}
-        evaluation = trace.evaluation.output if isinstance(trace.evaluation.output, dict) else {}
+        evaluation = trace.evaluation.output if trace.evaluation and isinstance(trace.evaluation.output, dict) else {}
         rows.append(
             {
                 "id": case["id"],
@@ -135,10 +174,12 @@ def run_live(cases: list[dict]) -> list[dict]:
 
 
 def _mean(rows: list[dict], key: str) -> float:
+    """Mean of `key` across rows."""
     return statistics.mean(r[key] for r in rows)
 
 
 def offline_table(res: dict) -> str:
+    """Format `run_offline` results as a Markdown report."""
     rows = res["cases"]
     lines = [
         f"Index: {res['n_chunks']} chunks · embedder coverage {res['embedder_coverage']:.0%} "
@@ -158,6 +199,7 @@ def offline_table(res: dict) -> str:
 
 
 def live_table(rows: list[dict]) -> str:
+    """Format `run_live` rows as a Markdown table."""
     lines = [
         "| case | agents with valid JSON | priority fields hit | evaluator score | seconds |",
         "|---|---|---|---|---|",
@@ -173,6 +215,7 @@ def live_table(rows: list[dict]) -> str:
 
 
 def main() -> None:
+    """CLI entry point: offline table, optional live run (--live), optional JSON dump (--json)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--k", type=int, default=settings.top_k)
     ap.add_argument("--live", action="store_true", help="also run the full pipeline (needs GOOGLE_API_KEY)")

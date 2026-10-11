@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -19,6 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.edu_content import AGENTS  # noqa: E402
+from src.agents.base import AgentResult  # noqa: E402
 from src.llm_clients.demo import load_fixture  # noqa: E402
 from src.orchestrator.pipeline import Orchestrator, PipelineTrace  # noqa: E402
 from src.utils.config import settings  # noqa: E402
@@ -28,6 +30,7 @@ st.set_page_config(page_title="Run pipeline", page_icon="🚀", layout="wide")
 
 @st.cache_resource(show_spinner=False)
 def get_orchestrator() -> Orchestrator:
+    """Shared Orchestrator, built once per server process (cache_resource survives reruns)."""
     return Orchestrator()
 
 
@@ -42,8 +45,16 @@ STAGE_TO_AGENT_KEY = {
 }
 
 
-def _agent_card(stage: str, agent_result, *, show_raw: bool = False):
-    """Render a finished agent stage as a teachable block."""
+def _agent_card(stage: str, agent_result: AgentResult | None, *, show_raw: bool = False) -> None:
+    """Render a finished agent stage as a teachable block.
+
+    Args:
+        stage: Graph stage name, mapped to an entry of `AGENTS` for the copy.
+        agent_result: The stage's result; nothing is rendered while it is None (stage not run yet).
+        show_raw: Also show the raw model text.
+    """
+    if agent_result is None:
+        return
     meta = AGENTS[STAGE_TO_AGENT_KEY[stage]]
     with st.container(border=True):
         st.markdown(f"### {meta['icon']} {meta['name']}")
@@ -66,7 +77,8 @@ def _agent_card(stage: str, agent_result, *, show_raw: bool = False):
                 st.code(agent_result.raw_text, language="text")
 
 
-def _retrieval_card(trace: PipelineTrace):
+def _retrieval_card(trace: PipelineTrace) -> None:
+    """Render the retrieval stage: passage count and the first six passages."""
     with st.container(border=True):
         st.markdown("### 📚 RAG Retrieval")
         st.caption(
@@ -81,7 +93,8 @@ def _retrieval_card(trace: PipelineTrace):
                 st.write(p.chunk.text[:600] + "…")
 
 
-def _roadmap_card(roadmap_dict):
+def _roadmap_card(roadmap_dict: Any) -> None:
+    """Render the roadmap output as phases and initiatives; non-dict output is shown as is."""
     if not isinstance(roadmap_dict, dict):
         st.write(roadmap_dict)
         return
@@ -112,8 +125,11 @@ def _roadmap_card(roadmap_dict):
         st.markdown("**Program KPIs:** " + " · ".join(roadmap_dict["kpi_summary"]))
 
 
-def _render_full_trace(trace: PipelineTrace, *, show_raw: bool):
-    """Render every stage at once (cache hits arrive as a single finished trace)."""
+def _render_full_trace(trace: PipelineTrace, *, show_raw: bool) -> None:
+    """Render every stage at once (cache hits arrive as a single finished trace).
+
+    Assumes plan, framework, canvas, strategy and roadmap are all set.
+    """
     _agent_card("planner", trace.plan, show_raw=show_raw)
     _retrieval_card(trace)
     for stage, result in (
@@ -123,7 +139,7 @@ def _render_full_trace(trace: PipelineTrace, *, show_raw: bool):
         ("roadmap", trace.roadmap),
     ):
         _agent_card(stage, result, show_raw=show_raw)
-    if isinstance(trace.roadmap.output, dict):
+    if trace.roadmap is not None and isinstance(trace.roadmap.output, dict):
         _roadmap_card(trace.roadmap.output)
     if trace.evaluation is not None:
         _agent_card("evaluator", trace.evaluation, show_raw=show_raw)
@@ -170,6 +186,8 @@ if settings.demo_active:
 business_case = st.text_area("📥 Business case", value=default_text, height=220)
 launch = st.button("▶ Run pipeline", type="primary")
 
+# The button is True only on the rerun right after the click; results are rendered
+# in that same run and are not kept in session_state.
 if launch and business_case.strip():
     orch = get_orchestrator()
     progress = st.progress(0, text="Starting…")
@@ -205,7 +223,7 @@ if launch and business_case.strip():
                 _agent_card("strategist", trace.strategy, show_raw=show_raw)
             elif stage == "roadmap":
                 _agent_card("roadmap", trace.roadmap, show_raw=show_raw)
-                if isinstance(trace.roadmap.output, dict):
+                if trace.roadmap is not None and isinstance(trace.roadmap.output, dict):
                     _roadmap_card(trace.roadmap.output)
             elif stage == "evaluator":
                 _agent_card("evaluator", trace.evaluation, show_raw=show_raw)

@@ -228,7 +228,7 @@ uv run uvicorn api.main:app --port 8000   # Swagger UI at http://localhost:8000/
 |---|---|---|
 | GET | `/health` | Liveness, configured models, index ready, `demo_mode` |
 | GET | `/pipeline-info` | Models per tier, embedding model, chunking, top-k |
-| POST | `/analyze` | Planner → RAG → Framework → Canvas only |
+| POST | `/analyze` | Planner → RAG → Framework and Canvas in parallel |
 | POST | `/generate-roadmap` | Full pipeline: roadmap, optional evaluation, trace |
 
 ```bash
@@ -292,6 +292,8 @@ The dashboard also has a **Multi-LLM Routing** page with a live policy tester, a
 ```bash
 uv run pytest -q        # offline: fake embedder, demo client, no network or keys
 uv run ruff check .
+uv run interrogate      # docstring coverage, fails under 90%
+uv run mypy             # type check (basic mode)
 ```
 
 GitHub Actions runs two jobs on every push and PR: **lint + unit tests**, and a **smoke test** that builds the real index, runs the evaluation and calls the API in demo mode.
@@ -306,27 +308,73 @@ docker build -t dt-roadmap . && docker run -p 7860:7860 -e GOOGLE_API_KEY=... dt
 
 ---
 
-## 📁 Project layout
+## 📁 Project structure
 
 ```
-app/                    Streamlit dashboard: home + 5 pages, teaching copy in edu_content.py
-api/main.py             FastAPI service
+app/
+  streamlit_app.py       Dashboard home and architecture diagram
+  edu_content.py         Teaching copy for agents and frameworks
+  pages/
+    1_Run_Pipeline.py    Run and inspect a pipeline trace
+    2_RAG_Inspector.py   Explore indexed chunks and retrieval
+    3_Multi_LLM_Routing.py  Test tier-selection policy
+    4_Frameworks.py      Framework reference page
+    5_How_It_Works.py    Glossary and walkthrough
+api/main.py             FastAPI health, analysis and roadmap endpoints
 src/
-  agents/               6 agents, shared base (routing call, lenient JSON parsing), prompts.py
-  orchestrator/         graph.py: LangGraph StateGraph; pipeline.py: run() and run_streaming(), disk-cached
-  routing/router.py     tier policy + quota failover
-  llm_clients/          gemini (langchain-google-genai) · ollama · demo (fixture) · mock, all as LangChain chat models
-  data_ingestion/       pypdf loader
-  chunking_embeddings/  chunker + sentence-transformers embedder
-  vector_store/         FAISS build / save / load / search
-  retrieval/            top-k retriever with framework filter
-  cache/                SHA-keyed disk cache
-scripts/                build_index.py · evaluate.py · record_demo.py · bench_live.py · bench_prompts.py
+  agents/
+    base.py              Agent result, routing call and JSON parsing
+    planner.py           Plan and retrieval queries
+    framework.py         Framework-grounded analysis
+    canvas_analysis.py   Business Model Canvas assessment
+    strategist.py        Transformation strategy
+    roadmap.py           Phased roadmap
+    evaluator.py         Roadmap evaluation
+    prompts.py           Agent prompt templates
+  orchestrator/
+    graph.py             LangGraph nodes, edges and state
+    pipeline.py          Streaming runner, trace and cache
+  routing/router.py      Tier policy and quota failover
+  llm_clients/
+    base.py              Shared client interface and response
+    gemini.py            Gemini chat client and retry handling
+    ollama.py            Local Ollama HTTP client
+    demo.py              Recorded-fixture client
+    mock.py              Offline placeholder client
+    langchain_chat.py    Adapter from clients to LangChain chat models
+  data_ingestion/loader.py  PDF corpus loader
+  chunking_embeddings/
+    chunker.py           Page-aware text windows
+    embedder.py          SentenceTransformer embeddings
+  vector_store/faiss_store.py  FAISS index persistence and search
+  retrieval/retriever.py  Batched top-k retrieval and filtering
+  cache/disk_cache.py    SHA-keyed disk cache
+  utils/
+    config.py            Environment-backed settings
+    logging.py           Logger setup
+scripts/
+  build_index.py         Build the local index
+  evaluate.py            Offline and live evaluation
+  record_demo.py         Capture a live demo fixture
+  bench_live.py          Live latency and token benchmark
+  bench_prompts.py       Compare prompt sizes
 data/                   sample case · demo fixture · eval cases
 corpus/                 reference PDFs (third-party, see corpus/README.md)
 tests/                  pytest suite
 deploy/                 container entrypoint + Hugging Face Space card
 ```
+
+## 🛠️ Development
+
+```bash
+uv sync                 # install runtime + dev dependencies (Python >= 3.10)
+uv run pytest -q        # tests (offline)
+uv run ruff check .     # lint, incl. Google-style docstring rules
+uv run interrogate      # docstring coverage (>= 90%)
+uv run mypy             # type check
+```
+
+Docstrings follow the Google style; public function parameters and returns are annotated. CI runs all of the above.
 
 ## 🧰 Stack
 

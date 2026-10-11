@@ -6,6 +6,8 @@ from src.agents.prompts import PLANNER_SYSTEM, PLANNER_USER
 
 
 class PlannerAgent(BaseAgent):
+    """Agent that extracts intent and structure from the business case into a plan."""
+
     name = "planner"
     task_type = "extraction"   # extract intent + structure
     complexity = "medium"

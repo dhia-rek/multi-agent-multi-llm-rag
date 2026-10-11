@@ -6,6 +6,8 @@ from src.agents.prompts import CANVAS_SYSTEM, CANVAS_USER
 
 
 class CanvasAnalysisAgent(BaseAgent):
+    """Agent that grades the 7 action fields and lists gaps/opportunities (high-complexity, high-criticality reasoning)."""
+
     name = "canvas_analysis"
     task_type = "reasoning"
     complexity = "high"

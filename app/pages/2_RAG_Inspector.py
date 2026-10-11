@@ -27,6 +27,7 @@ st.set_page_config(page_title="RAG Inspector", page_icon="🔍", layout="wide")
 
 @st.cache_resource(show_spinner=False)
 def get_store() -> FaissStore:
+    """Load the FAISS store once per server process (cache_resource)."""
     s = FaissStore(settings.index_dir)
     s.load()
     return s
@@ -34,6 +35,7 @@ def get_store() -> FaissStore:
 
 @st.cache_resource(show_spinner=False)
 def get_retriever() -> Retriever:
+    """Retriever over the cached store; also cached, so the embedding model loads once."""
     return Retriever(store=get_store())
 
 
